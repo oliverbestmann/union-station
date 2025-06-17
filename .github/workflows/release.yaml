@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  # Trigger this workflow when a tag is pushed in the format `v1.2.3`.
+  push:
+    tags:
+      # Pattern syntax: <https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet>.
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+
+  # Determine the version number for this workflow.
+  get-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine version number
+        id: tag
+        run: echo "tag=${GITHUB_REF#refs/tags/}" >> "${GITHUB_OUTPUT}"
+    outputs:
+      # Use the input from workflow dispatch, or fall back to the git tag.
+      version: ${{ inputs.version || steps.tag.outputs.tag }}
+
+  # Build and package a release for each platform.
+  build:
+    needs:
+      - get-version
+    env:
+      version: ${{ needs.get-version.outputs.version }}
+      # Avoid rate-limiting. See: <https://github.com/cargo-bins/cargo-binstall/issues/2045>.
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to create a GitHub release: <https://docs.github.com/en/rest/releases/releases#create-a-release>.
+      contents: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.24.x
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev
+
+      - name: Build
+        run: |
+          env GOOS=js GOARCH=wasm go build -v ./...
+
+      - name: Build (wasm)
+        run: |
+          env GOOS=js GOARCH=wasm go build -o unionstation.wasm -v ./...
+
+      - name: Bundle files
+        run: |
+          zip -9 union-station.zip index.html wasm_exec.js unionstation.wasm
+
+      - name: Upload package to workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          path: union-station.zip
+          name: package-wasm
+          retention-days: 1
+
+      - name: Upload package to GitHub release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: union-station.zip
+          asset_name: union-station.zip
+          release_name: ${{ env.version }}
+          tag: ${{ env.version }}
+          overwrite: true
+
+  # Upload all packages to itch.io.
+  upload-to-itch:
+    runs-on: ubuntu-latest
+    needs:
+      - get-version
+      - build
+
+    steps:
+      - name: Download all packages
+        uses: actions/download-artifact@v4
+        with:
+          name: union-station.zip
+          path: tmp
+
+      - name: Install butler
+        run: |
+          curl -L -o butler.zip 'https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default'
+          unzip butler.zip
+          chmod +x butler
+          ./butler -V
+
+      - name: Upload all packages to itch.io
+        env:
+          BUTLER_API_KEY: ${{ secrets.BUTLER_CREDENTIALS }}
+        run: |
+          for channel in $(ls tmp); do
+            ./butler push \
+              --fix-permissions \
+              --userversion='${{ needs.get-version.outputs.version }}' \
+              tmp/union-station.zip \
+              hopfenherrscher/union-station:web
+          done
+
