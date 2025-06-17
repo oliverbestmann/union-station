@@ -8,10 +8,11 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"iter"
+	"math"
 	"math/rand/v2"
 )
 
-type StreetType int
+type StreetType uint8
 
 const StreetTypeHighway = 0
 const StreetTypeLocal = 1
@@ -29,11 +30,7 @@ type Segment struct {
 	Connections []*Segment
 	Start       Vec
 	End         Vec
-
-	Center Vec
-	Radius float64
-
-	Type StreetType
+	Type        StreetType
 }
 
 func (s *Segment) BBox() Rect {
@@ -49,12 +46,6 @@ func (s *Segment) BBox() Rect {
 }
 
 func (s *Segment) Intersects(other *Segment) bool {
-	// quick test by comparing the circles. They can not intersect if the
-	// center point of both lines are too far apart
-	if s.Center.DistanceTo(other.Center) > s.Radius+other.Radius {
-		return false
-	}
-
 	return lineIntersect(s.Start, s.End, other.Start, other.End)
 }
 
@@ -103,6 +94,17 @@ func (s *Segment) Connect(other *Segment) {
 	if !other.ConnectedTo(s) {
 		other.Connections = append(other.Connections, s)
 	}
+}
+
+func (s *Segment) DistanceTo(other *Segment) float64 {
+	distanceSqr := min(
+		s.Start.DistanceSquaredTo(other.Start),
+		s.Start.DistanceSquaredTo(other.End),
+		s.End.DistanceSquaredTo(other.Start),
+		s.End.DistanceSquaredTo(other.End),
+	)
+
+	return math.Sqrt(distanceSqr)
 }
 
 type PendingSegmentQueue []PendingSegment
@@ -310,9 +312,6 @@ func (gen *StreetGenerator) nextSegment(previousSegment PendingSegment, maxAngle
 	newSegment := Segment{
 		Start: start,
 		End:   end,
-
-		Center: start.Add(end).Mulf(0.5),
-		Radius: start.DistanceTo(end) / 2,
 	}
 
 	if previousSegment.PreviousSegment != nil {
@@ -413,24 +412,18 @@ type GridCell struct {
 }
 
 type cellId struct {
-	X uint16
-	Y uint16
+	X int16
+	Y int16
 }
 
 type Grid struct {
 	cells map[cellId]*GridCell
 }
 
-func (g *Grid) cellIdOf(vec Vec) cellId {
-	return cellId{
-		X: uint16(max(0, vec.X/50)),
-		Y: uint16(max(0, vec.Y/50)),
-	}
-}
-
-func (g *Grid) getGridCell(id cellId) *GridCell {
+func (g *Grid) getGridCell(id cellId, create bool) *GridCell {
 	cell := g.cells[id]
-	if cell == nil {
+
+	if cell == nil && create {
 		if g.cells == nil {
 			g.cells = make(map[cellId]*GridCell)
 		}
@@ -442,14 +435,23 @@ func (g *Grid) getGridCell(id cellId) *GridCell {
 	return cell
 }
 
-func (g *Grid) cellsOf(bbox Rect) iter.Seq[*GridCell] {
-	minId := g.cellIdOf(bbox.Min)
-	maxId := g.cellIdOf(bbox.Max)
+func (g *Grid) cellsOf(bbox Rect, create bool) iter.Seq[*GridCell] {
+	minId := cellId{
+		X: int16(bbox.Min.X / 50),
+		Y: int16(bbox.Min.Y / 50),
+	}
+
+	maxId := cellId{
+		X: int16(math.Ceil(bbox.Max.X / 50)),
+		Y: int16(math.Ceil(bbox.Max.Y / 50)),
+	}
 
 	return func(yield func(*GridCell) bool) {
 		for y := minId.Y; y <= maxId.Y; y++ {
 			for x := minId.X; x <= maxId.X; x++ {
-				if !yield(g.getGridCell(cellId{X: x, Y: y})) {
+				gridCell := g.getGridCell(cellId{X: x, Y: y}, create)
+
+				if !yield(gridCell) {
 					return
 				}
 			}
@@ -459,7 +461,7 @@ func (g *Grid) cellsOf(bbox Rect) iter.Seq[*GridCell] {
 }
 
 func (g *Grid) Insert(segment *Segment) {
-	for cell := range g.cellsOf(segment.BBox()) {
+	for cell := range g.cellsOf(segment.BBox(), true) {
 		cell.Segments = append(cell.Segments, segment)
 	}
 }
@@ -472,11 +474,16 @@ func (g *Grid) Candidates(query *Segment, bbox Rect) iter.Seq[*Segment] {
 	return func(yield func(*Segment) bool) {
 		seen := make(map[*Segment]struct{})
 
-		for cell := range g.cellsOf(bbox) {
+		for cell := range g.cellsOf(bbox, false) {
+			if cell == nil {
+				continue
+			}
+
 			for _, segment := range cell.Segments {
 				_, dup := seen[segment]
 
 				if segment != query && !dup {
+					// mark as seen
 					seen[segment] = struct{}{}
 
 					if !yield(segment) {

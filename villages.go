@@ -19,40 +19,95 @@ type Village struct {
 	// convex hull of the village
 	Hull []Vec
 
+	// all segments that belong to this village
+	Segments []*Segment
+
 	// Bounding box of the village
 	BBox Rect
 }
 
-func VillagesOf(rng *rand.Rand, segments []*Segment) []Village {
-	names := Shuffled(rng, names)
+type indexGrid struct {
+	grid      Grid
+	remaining map[*Segment]struct{}
+}
 
-	var remaining []Vec
+func buildIndexGrid(grid Grid) indexGrid {
+	pg := indexGrid{
+		grid:      grid,
+		remaining: make(map[*Segment]struct{}),
+	}
 
-	for _, segment := range segments {
-		if segment.Type != StreetTypeLocal {
+	for _, cell := range grid.cells {
+		for _, segment := range cell.Segments {
+			if segment.Type != StreetTypeLocal {
+				continue
+			}
+
+			pg.remaining[segment] = struct{}{}
+		}
+	}
+
+	return pg
+}
+
+func (idx *indexGrid) Pop() *Segment {
+	for segment := range idx.remaining {
+		delete(idx.remaining, segment)
+		return segment
+	}
+
+	return nil
+}
+
+func (idx *indexGrid) Extract(query *Segment, distThreshold float64) []*Segment {
+	bbox := query.BBox()
+	bbox.Min.X -= distThreshold
+	bbox.Min.Y -= distThreshold
+	bbox.Max.X += distThreshold
+	bbox.Max.X += distThreshold
+
+	var result []*Segment
+
+	// query the grid for segments within that range
+	for cell := range idx.grid.cellsOf(bbox, false) {
+		if cell == nil {
 			continue
 		}
 
-		remaining = append(remaining, segment.Start, segment.End)
+		for _, segment := range cell.Segments {
+			_, exists := idx.remaining[segment]
+			if exists && query.DistanceTo(segment) <= distThreshold {
+				// add segment to the result
+				result = append(result, segment)
+
+				// remove segment from the index
+				delete(idx.remaining, segment)
+			}
+		}
 	}
+
+	return result
+}
+
+func VillagesOf(rng *rand.Rand, grid Grid, segments []*Segment) []Village {
+	names := Shuffled(rng, names)
+
+	index := buildIndexGrid(grid)
 
 	var villages []Village
 	var idle IdleSuspend
 
-	for len(remaining) > 1 {
+	for len(index.remaining) > 1 {
 		// get a point from the remaining points, this starts the next village
-		cluster := []Vec{pop(&remaining)}
+		cluster := []*Segment{index.Pop()}
 
 		// now grow the village
-		for idx := 0; idx < len(cluster) && len(remaining) > 0; idx++ {
-			// now partition the remaining points for near/far to the village
-			near, far := partition(remaining, cluster[idx], 100.0, nil, remaining[:0])
+		for idx := 0; idx < len(cluster) && len(index.remaining) > 0; idx++ {
+			// get all segments near to the one we're looking at right now
+			near := index.Extract(cluster[idx], 100)
 
 			// add near points to the current village
 			cluster = append(cluster, near...)
-
-			// and only keep the far points
-			remaining = far
 
 			if idx%50 == 0 {
 				// maybe suspend to give the browser time to update the next frame
@@ -60,7 +115,8 @@ func VillagesOf(rng *rand.Rand, segments []*Segment) []Village {
 			}
 		}
 
-		hull := ConvexHull(cluster)
+		pointCluster := pointsOf(cluster)
+		hull := ConvexHull(pointCluster)
 
 		// only call it a village if we have some actual points
 		if len(cluster) > 32 && len(hull) >= 3 {
@@ -68,12 +124,22 @@ func VillagesOf(rng *rand.Rand, segments []*Segment) []Village {
 				Id:   len(villages) + 1,
 				Name: pop(&names),
 				Hull: hull,
-				BBox: bboxOf(cluster),
+				BBox: bboxOf(hull),
 			})
 		}
 	}
 
 	return villages
+}
+
+func pointsOf(segments []*Segment) []Vec {
+	vecs := make([]Vec, 0, len(segments)*2)
+
+	for _, segment := range segments {
+		vecs = append(vecs, segment.Start, segment.End)
+	}
+
+	return vecs
 }
 
 func bboxOf(vecs []Vec) Rect {
@@ -92,30 +158,6 @@ func bboxOf(vecs []Vec) Rect {
 		Min: Vec{X: minX, Y: minY},
 		Max: Vec{X: maxX, Y: maxY},
 	}
-}
-
-func centerOf(vecs []Vec) Vec {
-	center := vecs[0]
-	for _, vec := range vecs {
-		center = center.Add(vec)
-	}
-
-	return center.Divf(float64(len(vecs)))
-}
-
-func partition(haystack []Vec, needle Vec, distThreshold float64, near []Vec, far []Vec) ([]Vec, []Vec) {
-	distThreshold *= distThreshold
-
-	for _, point := range haystack {
-		distSqr := needle.DistanceSquaredTo(point)
-		if distSqr <= distThreshold {
-			near = append(near, point)
-		} else {
-			far = append(far, point)
-		}
-	}
-
-	return near, far
 }
 
 func MarkVillage(target *ebiten.Image, tr ebiten.GeoM, village Village) {

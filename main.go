@@ -111,7 +111,7 @@ func (g *Game) Update() error {
 		}
 	}
 
-	// check if we've finished all generation
+	// check if we've finished remaining generation
 	if newSegmentCount > 0 && !g.gen.More() {
 		g.streetGenerationEndTime = time.Now()
 
@@ -135,7 +135,7 @@ func (g *Game) Update() error {
 			// find villages
 			return VillageCalculation{
 				Image:    image,
-				Villages: VillagesOf(g.gen.rng, g.gen.Segments()),
+				Villages: VillagesOf(g.gen.rng, g.gen.grid, g.gen.Segments()),
 			}
 		})
 	}
