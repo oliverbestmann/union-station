@@ -36,6 +36,18 @@ type Segment struct {
 	Type StreetType
 }
 
+func (s *Segment) BBox() Rect {
+	minX := min(s.Start.X, s.End.X)
+	maxX := max(s.Start.X, s.End.X)
+	minY := min(s.Start.Y, s.End.Y)
+	maxY := max(s.Start.Y, s.End.Y)
+
+	return Rect{
+		Min: Vec{X: minX, Y: minY},
+		Max: Vec{X: maxX, Y: maxY},
+	}
+}
+
 func (s *Segment) Intersects(other *Segment) bool {
 	// quick test by comparing the circles. They can not intersect if the
 	// center point of both lines are too far apart
@@ -165,7 +177,7 @@ func (gen *StreetGenerator) Next() *Segment {
 	segment := gen.nextSegment(prev, DegToRad(1))
 	segment.Type = prev.Type
 
-	for existing := range gen.grid.Candidates(segment) {
+	for existing := range gen.grid.Candidates(segment, Rect{}) {
 		if segment.Intersects(existing) && !segment.ConnectedTo(existing) {
 			// hit another segment.
 			// we take the previous segment and connect it with the
@@ -173,6 +185,9 @@ func (gen *StreetGenerator) Next() *Segment {
 			// to one of the points of the one we hit
 			if prev := prev.PreviousSegment; prev != nil {
 				prev.Connect(existing)
+
+				// TODO if we modify the previous segment,
+				//  we might need to modify the segments that are already connected to it
 
 				if prev.End.DistanceSquaredTo(existing.Start) < prev.End.DistanceSquaredTo(existing.End) {
 					prev.End = existing.Start
@@ -186,7 +201,10 @@ func (gen *StreetGenerator) Next() *Segment {
 	}
 
 	// check if we can find a point very near to our segments end
-	for _, existing := range gen.segments {
+	bbox5 := segment.BBox()
+	bbox5.Min = bbox5.Min.Sub(Vec{X: 5, Y: 5})
+	bbox5.Max = bbox5.Max.Add(Vec{X: 5, Y: 5})
+	for existing := range gen.grid.Candidates(segment, bbox5) {
 		const threshold = 5 * 5
 
 		if existing.End.DistanceSquaredTo(segment.End) < threshold {
@@ -441,14 +459,15 @@ func (g *Grid) cellsOf(bbox Rect) iter.Seq[*GridCell] {
 }
 
 func (g *Grid) Insert(segment *Segment) {
-	bbox := bboxOf([]Vec{segment.Start, segment.End})
-	for cell := range g.cellsOf(bbox) {
+	for cell := range g.cellsOf(segment.BBox()) {
 		cell.Segments = append(cell.Segments, segment)
 	}
 }
 
-func (g *Grid) Candidates(query *Segment) iter.Seq[*Segment] {
-	bbox := bboxOf([]Vec{query.Start, query.End})
+func (g *Grid) Candidates(query *Segment, bbox Rect) iter.Seq[*Segment] {
+	if bbox.IsZero() {
+		bbox = query.BBox()
+	}
 
 	return func(yield func(*Segment) bool) {
 		seen := make(map[*Segment]struct{})
