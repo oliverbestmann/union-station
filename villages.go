@@ -37,6 +37,7 @@ func VillagesOf(rng *rand.Rand, segments []*Segment) []Village {
 	}
 
 	var villages []Village
+	var idle IdleSuspend
 
 	for len(remaining) > 1 {
 		// get a point from the remaining points, this starts the next village
@@ -52,6 +53,11 @@ func VillagesOf(rng *rand.Rand, segments []*Segment) []Village {
 
 			// and only keep the far points
 			remaining = far
+
+			if idx%50 == 0 {
+				// maybe suspend to give the browser time to update the next frame
+				idle.MaybeSuspend()
+			}
 		}
 
 		hull := ConvexHull(cluster)
@@ -65,10 +71,6 @@ func VillagesOf(rng *rand.Rand, segments []*Segment) []Village {
 				BBox: bboxOf(cluster),
 			})
 		}
-
-		// sleep for a short while after each village to,
-		// so we can render a frame
-		wasmWait()
 	}
 
 	return villages

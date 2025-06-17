@@ -1,8 +1,25 @@
 <!DOCTYPE html>
 <script src="wasm_exec.js"></script>
 <script>
-const go = new Go();
-WebAssembly.instantiateStreaming(fetch("unionstation.wasm"), go.importObject).then(result => {
-    go.run(result.instance);
-});
+    // setup polyfill for requestIdleCallback
+    if (!window.requestIdleCallback) {
+        window.requestIdleCallback = function (cb) {
+            const start = Date.now();
+            return setTimeout(() => cb({
+                didTimeout: false,
+                timeRemaining: function () {
+                    return Math.max(0, 50 - (Date.now() - start));
+                },
+            }), 1);
+        };
+
+        window.cancelIdleCallback = function (id) {
+            clearTimeout(id);
+        };
+    }
+
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("unionstation.wasm"), go.importObject).then(result => {
+        go.run(result.instance);
+    });
 </script>

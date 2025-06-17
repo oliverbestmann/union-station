@@ -1,16 +1,13 @@
 package main
 
 import (
-	"github.com/hajimehoshi/bitmapfont"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/quasilyte/gmath"
 	"golang.org/x/image/font"
 	"image/color"
-	"runtime"
 	"sync/atomic"
-	"time"
 )
 
 func posOf(vec gmath.Vec) gmath.Pos {
@@ -116,17 +113,11 @@ func rgbaOf(rgba uint32) color.NRGBA {
 var DebugColor = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
 
 func MeasureText(face font.Face, text string) gmath.Vec {
-	bounds, _ := font.BoundString(bitmapfont.Gothic12r, text)
+	bounds, _ := font.BoundString(face, text)
 
 	size := bounds.Max.Sub(bounds.Min)
 	width := size.X.Ceil()
 	height := size.Y.Ceil()
 
 	return gmath.Vec{X: float64(width), Y: float64(height)}
-}
-
-func wasmWait() {
-	if runtime.GOARCH == "wasm" {
-		time.Sleep(16 * time.Millisecond)
-	}
 }

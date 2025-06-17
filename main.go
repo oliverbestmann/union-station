@@ -114,12 +114,15 @@ func (g *Game) Update() error {
 			image := ebiten.NewImage(g.screenWidth, g.screenHeight)
 			image.Fill(rgbaOf(0xdbcfb1ff))
 
+			var idle IdleSuspend
+
 			// paint the streets again
 			for idx, segment := range g.gen.segments {
 				segment.Draw(image, g.tr)
 
 				if idx%1_000 == 0 {
-					wasmWait()
+					// suspend on wasm if needed
+					idle.MaybeSuspend()
 				}
 			}
 
