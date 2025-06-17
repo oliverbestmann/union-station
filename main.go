@@ -30,6 +30,9 @@ type Game struct {
 	screenHeight int
 	worldScale   float64
 
+	startTime               time.Time
+	streetGenerationEndTime time.Time
+
 	worldSize Rect
 
 	lastUpdate time.Time
@@ -46,6 +49,7 @@ type Game struct {
 }
 
 func (g *Game) Init() {
+	g.startTime = time.Now()
 	g.lastUpdate = time.Now()
 
 	// base size, used for scaling
@@ -109,6 +113,8 @@ func (g *Game) Update() error {
 
 	// check if we've finished all generation
 	if newSegmentCount > 0 && !g.gen.More() {
+		g.streetGenerationEndTime = time.Now()
+
 		// asynchronously calculate the villages
 		g.villagesAsync = AsyncTask(func() VillageCalculation {
 			image := ebiten.NewImage(g.screenWidth, g.screenHeight)
@@ -197,11 +203,18 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	text.DrawWithOptions(screen, t, bitmapfont.Gothic12r, &op)
 	op.GeoM.Translate(0, 16)
 
+	if !g.streetGenerationEndTime.IsZero() {
+		t = fmt.Sprintf("Street generation took %s", g.streetGenerationEndTime.Sub(g.startTime))
+		text.DrawWithOptions(screen, t, bitmapfont.Gothic12r, &op)
+		op.GeoM.Translate(0, 16)
+	}
+
 	if g.villagesAsync.Waiting() {
 		t = "Calculating villages"
 		text.DrawWithOptions(screen, t, bitmapfont.Gothic12r, &op)
 		op.GeoM.Translate(0, 16)
 	}
+
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
@@ -211,7 +224,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 }
 
 func main() {
-	// defer profile.Start(profile.MemProfile).Stop()
+	defer ProfileCPU()()
 
 	screenWidth, screenHeight := 800*windowScale, 480*windowScale
 

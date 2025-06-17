@@ -6,6 +6,10 @@ import (
 	"syscall/js"
 )
 
+func ProfileCPU() func() {
+	return func() {}
+}
+
 type IdleSuspend struct {
 	/// the timeRemaining function given by the previous idleCallback
 	timeRemaining func() float64

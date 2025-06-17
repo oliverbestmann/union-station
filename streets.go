@@ -7,6 +7,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
+	"iter"
 	"math/rand/v2"
 )
 
@@ -36,7 +37,8 @@ type Segment struct {
 }
 
 func (s *Segment) Intersects(other *Segment) bool {
-	// quick test by comparing the circles
+	// quick test by comparing the circles. They can not intersect if the
+	// center point of both lines are too far apart
 	if s.Center.DistanceTo(other.Center) > s.Radius+other.Radius {
 		return false
 	}
@@ -124,6 +126,7 @@ type StreetGenerator struct {
 	noise         *fastnoiselite.FastNoiseLite
 	segmentsQueue PendingSegmentQueue
 	segments      []*Segment
+	grid          Grid
 }
 
 func NewStreetGenerator(clip Rect, seed uint64) StreetGenerator {
@@ -162,7 +165,7 @@ func (gen *StreetGenerator) Next() *Segment {
 	segment := gen.nextSegment(prev, DegToRad(1))
 	segment.Type = prev.Type
 
-	for _, existing := range gen.segments {
+	for existing := range gen.grid.Candidates(segment) {
 		if segment.Intersects(existing) && !segment.ConnectedTo(existing) {
 			// hit another segment.
 			// we take the previous segment and connect it with the
@@ -265,6 +268,7 @@ func (gen *StreetGenerator) Next() *Segment {
 	}
 
 	gen.segments = append(gen.segments, segment)
+	gen.grid.Insert(segment)
 
 	// tell the caller if we need to be called again
 	return segment
@@ -384,4 +388,84 @@ func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, tr ebit
 	img := ebiten.NewImage(width, height)
 	img.WritePixels(pixels)
 	return img
+}
+
+type GridCell struct {
+	Segments []*Segment
+}
+
+type cellId struct {
+	X uint16
+	Y uint16
+}
+
+type Grid struct {
+	cells map[cellId]*GridCell
+}
+
+func (g *Grid) cellIdOf(vec Vec) cellId {
+	return cellId{
+		X: uint16(max(0, vec.X/50)),
+		Y: uint16(max(0, vec.Y/50)),
+	}
+}
+
+func (g *Grid) getGridCell(id cellId) *GridCell {
+	cell := g.cells[id]
+	if cell == nil {
+		if g.cells == nil {
+			g.cells = make(map[cellId]*GridCell)
+		}
+
+		cell = &GridCell{}
+		g.cells[id] = cell
+	}
+
+	return cell
+}
+
+func (g *Grid) cellsOf(bbox Rect) iter.Seq[*GridCell] {
+	minId := g.cellIdOf(bbox.Min)
+	maxId := g.cellIdOf(bbox.Max)
+
+	return func(yield func(*GridCell) bool) {
+		for y := minId.Y; y <= maxId.Y; y++ {
+			for x := minId.X; x <= maxId.X; x++ {
+				if !yield(g.getGridCell(cellId{X: x, Y: y})) {
+					return
+				}
+			}
+		}
+	}
+
+}
+
+func (g *Grid) Insert(segment *Segment) {
+	bbox := bboxOf([]Vec{segment.Start, segment.End})
+	for cell := range g.cellsOf(bbox) {
+		cell.Segments = append(cell.Segments, segment)
+	}
+}
+
+func (g *Grid) Candidates(query *Segment) iter.Seq[*Segment] {
+	bbox := bboxOf([]Vec{query.Start, query.End})
+
+	return func(yield func(*Segment) bool) {
+		seen := make(map[*Segment]struct{})
+
+		for cell := range g.cellsOf(bbox) {
+			for _, segment := range cell.Segments {
+				_, dup := seen[segment]
+
+				if segment != query && !dup {
+					seen[segment] = struct{}{}
+
+					if !yield(segment) {
+						return
+					}
+				}
+			}
+		}
+
+	}
 }
