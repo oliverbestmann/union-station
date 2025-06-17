@@ -71,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: union-station.zip
-          name: package-wasm
+          name: union-station.zip
           retention-days: 1
 
       - name: Upload package to GitHub release
