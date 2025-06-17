@@ -119,7 +119,7 @@ func (g *Game) Update() error {
 				segment.Draw(image, g.tr)
 
 				if idx%1_000 == 0 {
-					time.Sleep(10 * time.Millisecond)
+					wasmWait()
 				}
 			}
 

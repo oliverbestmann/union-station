@@ -8,7 +8,9 @@ import (
 	"github.com/quasilyte/gmath"
 	"golang.org/x/image/font"
 	"image/color"
+	"runtime"
 	"sync/atomic"
+	"time"
 )
 
 func posOf(vec gmath.Vec) gmath.Pos {
@@ -121,4 +123,10 @@ func MeasureText(face font.Face, text string) gmath.Vec {
 	height := size.Y.Ceil()
 
 	return gmath.Vec{X: float64(width), Y: float64(height)}
+}
+
+func wasmWait() {
+	if runtime.GOARCH == "wasm" {
+		time.Sleep(16 * time.Millisecond)
+	}
 }

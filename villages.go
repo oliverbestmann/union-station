@@ -8,7 +8,6 @@ import (
 	. "github.com/quasilyte/gmath"
 	"math"
 	"math/rand/v2"
-	"time"
 )
 
 type Village struct {
@@ -67,9 +66,9 @@ func VillagesOf(rng *rand.Rand, segments []*Segment) []Village {
 			})
 		}
 
-		if len(remaining)%1000 == 0 {
-			time.Sleep(10 * time.Millisecond)
-		}
+		// sleep for a short while after each village to,
+		// so we can render a frame
+		wasmWait()
 	}
 
 	return villages
