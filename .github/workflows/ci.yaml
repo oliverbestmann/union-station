@@ -16,6 +16,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Build (arm64)
         run: |
           env GOOS=linux GOARCH=amd64 go build -v ./...
