@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/hajimehoshi/bitmapfont"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -24,18 +25,18 @@ type Village struct {
 
 	// Bounding box of the village
 	BBox Rect
+
+	/// Number of people living this village
+	PopulationCount int
 }
 
-type indexGrid struct {
+type GridIndex struct {
 	grid      Grid
-	remaining map[*Segment]struct{}
+	Remaining Set[*Segment]
 }
 
-func buildIndexGrid(grid Grid) indexGrid {
-	pg := indexGrid{
-		grid:      grid,
-		remaining: make(map[*Segment]struct{}),
-	}
+func NewGridIndex(grid Grid) GridIndex {
+	pg := GridIndex{grid: grid}
 
 	for _, cell := range grid.cells {
 		for _, segment := range cell.Segments {
@@ -43,23 +44,19 @@ func buildIndexGrid(grid Grid) indexGrid {
 				continue
 			}
 
-			pg.remaining[segment] = struct{}{}
+			pg.Remaining.Insert(segment)
 		}
 	}
 
 	return pg
 }
 
-func (idx *indexGrid) Pop() *Segment {
-	for segment := range idx.remaining {
-		delete(idx.remaining, segment)
-		return segment
-	}
-
-	return nil
+func (idx *GridIndex) PopOne() *Segment {
+	segment, _ := idx.Remaining.PopOne()
+	return segment
 }
 
-func (idx *indexGrid) Extract(query *Segment, distThreshold float64) []*Segment {
+func (idx *GridIndex) Extract(query *Segment, distThreshold float64) []*Segment {
 	bbox := query.BBox()
 	bbox.Min.X -= distThreshold
 	bbox.Min.Y -= distThreshold
@@ -69,19 +66,14 @@ func (idx *indexGrid) Extract(query *Segment, distThreshold float64) []*Segment 
 	var result []*Segment
 
 	// query the grid for segments within that range
-	for cell := range idx.grid.cellsOf(bbox, false) {
-		if cell == nil {
-			continue
-		}
-
+	for cell := range idx.grid.CellsOf(bbox, false) {
 		for _, segment := range cell.Segments {
-			_, exists := idx.remaining[segment]
-			if exists && query.DistanceTo(segment) <= distThreshold {
+			if idx.Remaining.Has(segment) && query.DistanceTo(segment) <= distThreshold {
 				// add segment to the result
 				result = append(result, segment)
 
 				// remove segment from the index
-				delete(idx.remaining, segment)
+				idx.Remaining.Remove(segment)
 			}
 		}
 	}
@@ -89,20 +81,20 @@ func (idx *indexGrid) Extract(query *Segment, distThreshold float64) []*Segment 
 	return result
 }
 
-func VillagesOf(rng *rand.Rand, grid Grid, segments []*Segment) []Village {
+func VillagesOf(rng *rand.Rand, grid Grid, segments []*Segment) []*Village {
 	names := Shuffled(rng, names)
 
-	index := buildIndexGrid(grid)
+	index := NewGridIndex(grid)
 
-	var villages []Village
+	var villages []*Village
 	var idle IdleSuspend
 
-	for len(index.remaining) > 1 {
+	for index.Remaining.Len() > 1 {
 		// get a point from the remaining points, this starts the next village
-		cluster := []*Segment{index.Pop()}
+		cluster := []*Segment{index.PopOne()}
 
 		// now grow the village
-		for idx := 0; idx < len(cluster) && len(index.remaining) > 0; idx++ {
+		for idx := 0; idx < len(cluster) && index.Remaining.Len() > 0; idx++ {
 			// get all segments near to the one we're looking at right now
 			near := index.Extract(cluster[idx], 100)
 
@@ -120,16 +112,28 @@ func VillagesOf(rng *rand.Rand, grid Grid, segments []*Segment) []Village {
 
 		// only call it a village if we have some actual points
 		if len(cluster) > 32 && len(hull) >= 3 {
-			villages = append(villages, Village{
+			villages = append(villages, &Village{
 				Id:   len(villages) + 1,
 				Name: pop(&names),
 				Hull: hull,
 				BBox: bboxOf(hull),
+
+				PopulationCount: populationCountOf(cluster),
 			})
 		}
 	}
 
 	return villages
+}
+
+func populationCountOf(segments []*Segment) int {
+	var sum float64
+	for _, segment := range segments {
+		// we count one person for every 100m street length
+		sum += segment.Length() / 100
+	}
+
+	return int(math.Ceil(sum))
 }
 
 func pointsOf(segments []*Segment) []Vec {
@@ -160,7 +164,7 @@ func bboxOf(vecs []Vec) Rect {
 	}
 }
 
-func MarkVillage(target *ebiten.Image, tr ebiten.GeoM, village Village) {
+func MarkVillage(target *ebiten.Image, tr ebiten.GeoM, village *Village) {
 	trInv := tr
 	trInv.Invert()
 
@@ -179,16 +183,26 @@ func MarkVillage(target *ebiten.Image, tr ebiten.GeoM, village Village) {
 	FillPath(target, path, tr, rgbaOf(0x83838320))
 
 	bounds := MeasureText(bitmapfont.Gothic12r, village.Name).Mulf(0.5)
+	_ = bounds
 
 	// paint the name of the village
 	center := TransformVec(tr, village.BBox.Center())
 
-	var op ebiten.DrawImageOptions
-	op.GeoM.Scale(2.0, 2.0)
-	op.GeoM.Translate(-bounds.X, bounds.Y)
-	op.GeoM.Translate(center.X, center.Y)
-	op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
-	text.DrawWithOptions(target, village.Name, bitmapfont.Gothic12r, &op)
+	{
+		var op ebiten.DrawImageOptions
+		op.GeoM.Scale(2.0, 2.0)
+		op.GeoM.Translate(center.X, center.Y)
+		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
+		text.DrawWithOptions(target, village.Name, bitmapfont.Gothic12r, &op)
+	}
+
+	{
+		var op ebiten.DrawImageOptions
+		op.GeoM.Translate(center.X-4, center.Y+16.0)
+		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
+		t := fmt.Sprintf("Population: %d", village.PopulationCount)
+		text.DrawWithOptions(target, t, bitmapfont.Gothic12r, &op)
+	}
 }
 
 //goland:noinspection ALL

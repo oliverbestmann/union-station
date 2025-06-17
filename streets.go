@@ -49,6 +49,10 @@ func (s *Segment) Intersects(other *Segment) bool {
 	return lineIntersect(s.Start, s.End, other.Start, other.End)
 }
 
+func (s *Segment) Intersection(other *Segment) (Vec, bool) {
+	return lineIntersection(s.Start, s.End, other.Start, other.End)
+}
+
 func (s *Segment) Draw(target *ebiten.Image, g ebiten.GeoM) {
 	dir := s.End.Sub(s.Start).Normalized()
 
@@ -76,7 +80,7 @@ func (s *Segment) Length() float64 {
 	return s.Start.DistanceTo(s.End)
 }
 
-func (s *Segment) ConnectedTo(other *Segment) bool {
+func (s *Segment) IsConnected(other *Segment) bool {
 	for _, connected := range s.Connections {
 		if connected == other {
 			return true
@@ -87,11 +91,11 @@ func (s *Segment) ConnectedTo(other *Segment) bool {
 }
 
 func (s *Segment) Connect(other *Segment) {
-	if !s.ConnectedTo(other) {
+	if !s.IsConnected(other) {
 		s.Connections = append(s.Connections, other)
 	}
 
-	if !other.ConnectedTo(s) {
+	if !other.IsConnected(s) {
 		other.Connections = append(other.Connections, s)
 	}
 }
@@ -179,52 +183,58 @@ func (gen *StreetGenerator) Next() *Segment {
 	segment := gen.nextSegment(prev, DegToRad(1))
 	segment.Type = prev.Type
 
+	if !gen.Clip.Contains(segment.Start) && !gen.Clip.Contains(segment.End) {
+		// skip if out of the screen
+		return nil
+	}
+
+	gen.segments = append(gen.segments, segment)
+	gen.grid.Insert(segment)
+
+	// max distance when to connect to existing segments
+	const connectThreshold = 30
+
+	// check if we can find a point very near to our segments end
+	bbox5 := segment.BBox()
+	bbox5.Min = bbox5.Min.Sub(Vec{X: connectThreshold, Y: connectThreshold})
+	bbox5.Max = bbox5.Max.Add(Vec{X: connectThreshold, Y: connectThreshold})
+	for existing := range gen.grid.Candidates(segment, bbox5) {
+		if segment.IsConnected(existing) {
+			continue
+		}
+
+		if existing.End.DistanceSquaredTo(segment.End) < connectThreshold*connectThreshold {
+			segment.Connect(existing)
+			segment.End = existing.End
+			return segment
+		}
+
+		if existing.Start.DistanceSquaredTo(segment.End) < connectThreshold*connectThreshold {
+			segment.Connect(existing)
+			segment.End = existing.Start
+			return segment
+		}
+	}
+
 	for existing := range gen.grid.Candidates(segment, Rect{}) {
-		if segment.Intersects(existing) && !segment.ConnectedTo(existing) {
+		if segment.Intersects(existing) && !segment.IsConnected(existing) {
 			// hit another segment.
 			// we take the previous segment and connect it with the
 			// segment that we have just hit. We also adjust its end to connect
 			// to one of the points of the one we hit
 			if prev := prev.PreviousSegment; prev != nil {
-				prev.Connect(existing)
+				// connect it with the segment we've hit
+				segment.Connect(existing)
 
-				// TODO if we modify the previous segment,
-				//  we might need to modify the segments that are already connected to it
+				// calculate the intersection point
+				point, _ := segment.Intersection(existing)
 
-				if prev.End.DistanceSquaredTo(existing.Start) < prev.End.DistanceSquaredTo(existing.End) {
-					prev.End = existing.Start
-				} else {
-					prev.End = existing.End
-				}
+				// shorten the segment to terminate at the intersection point
+				segment.End = point
 			}
 
-			return nil
+			return segment
 		}
-	}
-
-	// check if we can find a point very near to our segments end
-	bbox5 := segment.BBox()
-	bbox5.Min = bbox5.Min.Sub(Vec{X: 5, Y: 5})
-	bbox5.Max = bbox5.Max.Add(Vec{X: 5, Y: 5})
-	for existing := range gen.grid.Candidates(segment, bbox5) {
-		const threshold = 5 * 5
-
-		if existing.End.DistanceSquaredTo(segment.End) < threshold {
-			segment.Connect(existing)
-			segment.End = existing.End
-			break
-		}
-
-		if existing.Start.DistanceSquaredTo(segment.End) < threshold {
-			segment.Connect(existing)
-			segment.End = existing.Start
-			break
-		}
-	}
-
-	if !gen.Clip.Contains(segment.Start) && !gen.Clip.Contains(segment.End) {
-		// skip if out of the screen
-		return nil
 	}
 
 	const localStreetDensityThreshold = 0.25
@@ -286,9 +296,6 @@ func (gen *StreetGenerator) Next() *Segment {
 			AtStep:                 nextAtStep,
 		})
 	}
-
-	gen.segments = append(gen.segments, segment)
-	gen.grid.Insert(segment)
 
 	// tell the caller if we need to be called again
 	return segment
@@ -361,24 +368,38 @@ func cross(a, b Vec) float64 {
 }
 
 // Check if two line segments (p1-p2 and q1-q2) intersect
-func lineIntersect(p1, p2, q1, q2 Vec) bool {
+func lineIntersectionValues(p1, p2, q1, q2 Vec) (t, u float64) {
 	r := p2.Sub(p1)
 	s := q2.Sub(q1)
 	denom := cross(r, s)
 
 	if denom == 0 {
 		// Lines are parallel
-		return false
+		return -1, -1
 	}
 
 	uNumerator := cross(q1.Sub(p1), r)
 	tNumerator := cross(q1.Sub(p1), s)
 
-	u := uNumerator / denom
-	t := tNumerator / denom
+	u = uNumerator / denom
+	t = tNumerator / denom
 
+	return
+}
+
+func lineIntersect(p1, p2, q1, q2 Vec) bool {
+	t, u := lineIntersectionValues(p1, p2, q1, q2)
 	// Check if t and u are within (0, 1) for segment-segment intersection
 	return t > 0 && t < 1 && u > 0 && u < 1
+}
+
+// Check if two line segments (p1-p2 and q1-q2) intersect
+func lineIntersection(p1, p2, q1, q2 Vec) (Vec, bool) {
+	t, u := lineIntersectionValues(p1, p2, q1, q2)
+
+	// Check if t and u are within (0, 1) for segment-segment intersection
+	ok := t > 0 && t < 1 && u > 0 && u < 1
+	return p1.Add(p2.Sub(p1).Mulf(t)), ok
 }
 
 func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, tr ebiten.GeoM) *ebiten.Image {
@@ -393,9 +414,10 @@ func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, tr ebit
 
 			pxValue := uint8(noiseValue * 0xff)
 
-			pixels[pos+0] = 0
-			pixels[pos+1] = 0
-			pixels[pos+2] = 0
+			if noiseValue > 0.25 {
+				pixels[pos+1] = pxValue
+			}
+
 			pixels[pos+3] = pxValue
 
 			pos += 4
@@ -435,7 +457,7 @@ func (g *Grid) getGridCell(id cellId, create bool) *GridCell {
 	return cell
 }
 
-func (g *Grid) cellsOf(bbox Rect, create bool) iter.Seq[*GridCell] {
+func (g *Grid) CellsOf(bbox Rect, create bool) iter.Seq[*GridCell] {
 	minId := cellId{
 		X: int16(bbox.Min.X / 50),
 		Y: int16(bbox.Min.Y / 50),
@@ -450,9 +472,10 @@ func (g *Grid) cellsOf(bbox Rect, create bool) iter.Seq[*GridCell] {
 		for y := minId.Y; y <= maxId.Y; y++ {
 			for x := minId.X; x <= maxId.X; x++ {
 				gridCell := g.getGridCell(cellId{X: x, Y: y}, create)
-
-				if !yield(gridCell) {
-					return
+				if gridCell != nil {
+					if !yield(gridCell) {
+						return
+					}
 				}
 			}
 		}
@@ -461,7 +484,7 @@ func (g *Grid) cellsOf(bbox Rect, create bool) iter.Seq[*GridCell] {
 }
 
 func (g *Grid) Insert(segment *Segment) {
-	for cell := range g.cellsOf(segment.BBox(), true) {
+	for cell := range g.CellsOf(segment.BBox(), true) {
 		cell.Segments = append(cell.Segments, segment)
 	}
 }
@@ -474,11 +497,7 @@ func (g *Grid) Candidates(query *Segment, bbox Rect) iter.Seq[*Segment] {
 	return func(yield func(*Segment) bool) {
 		seen := make(map[*Segment]struct{})
 
-		for cell := range g.cellsOf(bbox, false) {
-			if cell == nil {
-				continue
-			}
-
+		for cell := range g.CellsOf(bbox, false) {
 			for _, segment := range cell.Segments {
 				_, dup := seen[segment]
 

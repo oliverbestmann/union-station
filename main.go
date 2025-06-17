@@ -5,9 +5,11 @@ import (
 	"github.com/hajimehoshi/bitmapfont"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"log"
 	"math"
+	"slices"
 	"time"
 )
 
@@ -21,7 +23,8 @@ type Drawable interface {
 
 type VillageCalculation struct {
 	Image    *ebiten.Image
-	Villages []Village
+	Villages []*Village
+	Stations []*Station
 }
 
 // Game implements ebiten.Game interface.
@@ -41,6 +44,8 @@ type Game struct {
 	noise         *ebiten.Image
 	streets       *ebiten.Image
 	villagesAsync Promise[VillageCalculation]
+
+	selectedVillage *Village
 
 	tr    ebiten.GeoM
 	trInv ebiten.GeoM
@@ -133,15 +138,49 @@ func (g *Game) Update() error {
 			}
 
 			// find villages
+			villages := VillagesOf(g.gen.rng, g.gen.grid, g.gen.Segments())
+
+			// find one or more stations per village
+			stations := GenerateStations(g.gen.rng, villages)
+
+			stations = slices.DeleteFunc(stations, func(station *Station) bool {
+				// remove stations that are near the border
+				clip := Rect{
+					Min: g.worldSize.Min.Add(g.worldSize.Size().Mulf(0.1)),
+					Max: g.worldSize.Max.Sub(g.worldSize.Size().Mulf(0.1)),
+				}
+
+				return !clip.Contains(station.Position)
+			})
+
 			return VillageCalculation{
 				Image:    image,
-				Villages: VillagesOf(g.gen.rng, g.gen.grid, g.gen.Segments()),
+				Villages: villages,
+				Stations: stations,
 			}
 		})
 	}
 
 	if res := g.villagesAsync.Get(); res != nil {
 		g.streets = res.Image
+	}
+
+	// check if any village should be highlighted
+	if villages := g.villagesAsync.Get(); villages != nil {
+		worldCursor := CursorPosition(g.trInv)
+
+		// reset selected villages
+		g.selectedVillage = nil
+
+		for _, village := range villages.Villages {
+			if !village.BBox.Contains(worldCursor) {
+				continue
+			}
+
+			if PointInConvexHull(village.Hull, worldCursor) {
+				g.selectedVillage = village
+			}
+		}
 	}
 
 	return nil
@@ -163,18 +202,20 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	// check if any village should be highlighted
-	if villages := g.villagesAsync.Get(); villages != nil {
-		cx, cy := ebiten.CursorPosition()
+	if result := g.villagesAsync.Get(); result != nil {
+		// paint the stations
+		for _, station := range result.Stations {
+			loc := TransformVec(g.tr, station.Position).AsVec32()
 
-		// map cursor into world space
-		worldCursor := TransformVec(g.trInv, Vec{X: float64(cx), Y: float64(cy)})
+			color := rgbaOf(0x6d838eff)
+			vector.DrawFilledCircle(screen, loc.X, loc.Y, 10, color, true)
 
-		for _, village := range villages.Villages {
-			if village.BBox.Contains(worldCursor) {
-				if PointInConvexHull(village.Hull, worldCursor) {
-					MarkVillage(screen, g.tr, village)
-				}
-			}
+			color = rgbaOf(0x839ca9ff)
+			vector.DrawFilledCircle(screen, loc.X, loc.Y, 8, color, true)
+		}
+
+		if g.selectedVillage != nil {
+			MarkVillage(screen, g.tr, g.selectedVillage)
 		}
 	}
 
