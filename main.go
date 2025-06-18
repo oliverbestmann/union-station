@@ -10,7 +10,6 @@ import (
 	"log"
 	"math"
 	"math/rand/v2"
-	"slices"
 	"time"
 )
 
@@ -44,7 +43,7 @@ type Game struct {
 
 	noise         *ebiten.Image
 	streets       *ebiten.Image
-	villagesAsync Promise[VillageCalculation]
+	villagesAsync Promise[VillageCalculation, string]
 
 	hoveredVillage     *Village
 	selectedVillageOne *Village
@@ -149,7 +148,9 @@ func (g *Game) Update() error {
 		g.streetGenerationEndTime = time.Now()
 
 		// asynchronously calculate the villages
-		g.villagesAsync = AsyncTask(func() VillageCalculation {
+		g.villagesAsync = AsyncTask(func(yield func(string)) VillageCalculation {
+			yield("Drawing streets")
+
 			image := ebiten.NewImage(g.screenWidth, g.screenHeight)
 			image.Fill(rgbaOf(0xdbcfb1ff))
 
@@ -166,20 +167,20 @@ func (g *Game) Update() error {
 			}
 
 			// find villages
-			villages := VillagesOf(g.rng, g.gen.grid, g.gen.Segments())
+			yield("Collecting villages")
+			villages := CollectVillages(g.rng, g.gen.grid, g.gen.Segments())
 
-			// find one or more stations per village
-			stations := GenerateStations(g.rng, villages)
+			yield("Calculate clip rectangle")
 
-			stations = slices.DeleteFunc(stations, func(station *Station) bool {
-				// remove stations that are near the border
-				clip := Rect{
-					Min: g.worldSize.Min.Add(g.worldSize.Size().Mulf(0.1)),
-					Max: g.worldSize.Max.Sub(g.worldSize.Size().Mulf(0.1)),
-				}
+			// do not place anything near the edge of the screen
+			clipThreshold := TransformScalar(g.toWorld, 128)
+			clip := Rect{
+				Min: g.worldSize.Min.Add(Vec{X: clipThreshold, Y: clipThreshold}),
+				Max: g.worldSize.Max.Sub(Vec{X: clipThreshold, Y: clipThreshold}),
+			}
 
-				return !clip.Contains(station.Position)
-			})
+			yield("Generating stations")
+			stations := GenerateStations(g.rng, clip, villages)
 
 			return VillageCalculation{
 				Image:    image,
@@ -332,12 +333,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		op.GeoM.Translate(0, 16)
 	}
 
-	if g.villagesAsync.Waiting() {
-		t = "Calculating villages"
+	if progress := g.villagesAsync.Progress(); progress != nil {
+		t = *progress + "..."
 		text.DrawWithOptions(screen, t, Font, &op)
 		op.GeoM.Translate(0, 16)
 	}
-
 }
 
 func DrawVillageConnection(target *ebiten.Image, toScreen ebiten.GeoM, stations []*Station, one *Village, two *Village) {

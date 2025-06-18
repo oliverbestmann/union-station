@@ -90,7 +90,7 @@ func (idx *GridIndex) Extract(query *Segment, distThreshold float64) []*Segment 
 	return result
 }
 
-func VillagesOf(rng *rand.Rand, grid Grid, segments []*Segment) []*Village {
+func CollectVillages(rng *rand.Rand, grid Grid, segments []*Segment) []*Village {
 	names := Shuffled(rng, names)
 
 	index := NewGridIndex(grid)

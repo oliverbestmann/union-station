@@ -61,24 +61,29 @@ func FillPath(target *ebiten.Image, path vector.Path, tr ebiten.GeoM, color colo
 	colorm.DrawTriangles(target, vertices, indices, whiteImage, c, top)
 }
 
-type Promise[T any] struct {
-	result  *atomic.Pointer[T]
-	started bool
+type Promise[T any, P any] struct {
+	result   *atomic.Pointer[T]
+	progress *atomic.Pointer[P]
+	started  bool
 }
 
-func AsyncTask[T any](task func() T) Promise[T] {
+func AsyncTask[T any, P any](task func(yield func(P)) T) Promise[T, P] {
 	ptr := &atomic.Pointer[T]{}
+	progress := &atomic.Pointer[P]{}
 
 	// spawn go-routine with task
 	go func() {
-		result := task()
+		result := task(func(p P) {
+			progress.Store(&p)
+		})
+
 		ptr.Store(&result)
 	}()
 
-	return Promise[T]{started: true, result: ptr}
+	return Promise[T, P]{started: true, result: ptr, progress: progress}
 }
 
-func (p Promise[T]) Get() *T {
+func (p Promise[T, P]) Get() *T {
 	if p.result == nil {
 		return nil
 	}
@@ -86,7 +91,15 @@ func (p Promise[T]) Get() *T {
 	return p.result.Load()
 }
 
-func (p Promise[T]) Waiting() bool {
+func (p Promise[T, P]) Progress() *P {
+	if p.progress == nil || p.Get() != nil {
+		return nil
+	}
+
+	return p.progress.Load()
+}
+
+func (p Promise[T, P]) Waiting() bool {
 	return p.started && p.Get() == nil
 }
 
