@@ -8,34 +8,33 @@ import (
 
 var touchIds []ebiten.TouchID
 
-func Clicked(toWorld ebiten.GeoM) (Vec, bool) {
+func Clicked() (Vec, bool) {
 	// re-use touchId buffer
 	touchIds = inpututil.AppendJustPressedTouchIDs(touchIds[:0])
 	for _, touchId := range touchIds {
 		touchX, touchY := ebiten.TouchPosition(touchId)
-		return transformCursor(toWorld, touchX, touchY), true
+		return intToVec(touchX, touchY), true
 	}
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		mouseX, mouseY := ebiten.CursorPosition()
-		return transformCursor(toWorld, mouseX, mouseY), true
+		return intToVec(mouseX, mouseY), true
 	}
 
 	return Vec{}, false
 }
 
-func CursorPosition(toWorld ebiten.GeoM) Vec {
+func CursorPosition() Vec {
 	touchIds = ebiten.AppendTouchIDs(touchIds[:0])
 	for _, touchId := range touchIds {
 		touchX, touchY := ebiten.TouchPosition(touchId)
-		return transformCursor(toWorld, touchX, touchY)
+		return intToVec(touchX, touchY)
 	}
 
 	mouseX, mouseY := ebiten.CursorPosition()
-	return transformCursor(toWorld, mouseX, mouseY)
+	return intToVec(mouseX, mouseY)
 }
 
-func transformCursor(tr ebiten.GeoM, x, y int) Vec {
-	wx, wy := tr.Apply(float64(x), float64(y))
-	return Vec{X: wx, Y: wy}
+func intToVec(x, y int) Vec {
+	return Vec{X: float64(x), Y: float64(y)}
 }

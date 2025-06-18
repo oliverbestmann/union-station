@@ -16,19 +16,12 @@ func GenerateStations(rng *rand.Rand, clip Rect, villages []*Village) []*Station
 	var stations []*Station
 
 	for _, village := range villages {
-		var bestScore float64 = -1
-		var bestStations []*Station
+		newStations := MaxOf(
+			Repeat(5, func() []*Station { return generateStations(rng, clip, village) }),
+			stationScore,
+		)
 
-		for range 5 {
-			newStations := generateStations(rng, clip, village)
-			score := stationScore(newStations)
-
-			if score > bestScore {
-				bestScore = score
-				bestStations = newStations
-			}
-		}
-		stations = append(stations, bestStations...)
+		stations = append(stations, newStations...)
 	}
 
 	return stations
@@ -55,7 +48,13 @@ func generateStations(rng *rand.Rand, clip Rect, village *Village) []*Station {
 		return nil
 	}
 
-	stationCount := populationCountOf(segments)/1000 + 1
+	populationCount := populationCountOf(segments)
+	if populationCount < 50 {
+		return nil
+	}
+
+	stationCount := populationCount/1000 + 1
+
 	var stations []*Station
 
 	for range stationCount {

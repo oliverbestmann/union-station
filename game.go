@@ -9,6 +9,7 @@ import (
 	. "github.com/quasilyte/gmath"
 	"math"
 	"math/rand/v2"
+	"slices"
 	"time"
 )
 
@@ -42,6 +43,7 @@ type Game struct {
 	toScreen ebiten.GeoM
 	toWorld  ebiten.GeoM
 
+	clicked      bool
 	cursorWorld  Vec
 	cursorScreen Vec
 
@@ -146,9 +148,14 @@ func (g *Game) Update() error {
 		g.streets = res.Image
 	}
 
-	// get cursor position
-	g.cursorWorld = CursorPosition(g.toWorld)
-	g.cursorScreen = TransformVec(g.toScreen, g.cursorWorld)
+	// get click information
+	g.cursorScreen, g.clicked = Clicked()
+	if !g.clicked {
+		g.cursorScreen = CursorPosition()
+	}
+
+	// derive screen cursor position
+	g.cursorWorld = TransformVec(g.toWorld, g.cursorScreen)
 
 	// now process input
 	g.Input()
@@ -157,24 +164,29 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Input() {
-	// get click information
-	worldClickedAt, clicked := Clicked(g.toWorld)
-
 	var clickedStation, hoveredStation *Station
 
 	if result := g.villagesAsync.Get(); result != nil {
-		for _, station := range result.Stations {
-			if station.Village.Contains(g.cursorWorld) {
-				hoveredStation = station
-			}
+		// get the station that is nearest to the mouse
+		station := MaxOf(slices.Values(result.Stations), func(station *Station) float64 {
+			return -g.cursorWorld.DistanceSquaredTo(station.Position)
+		})
 
-			if clicked && station.Village.Contains(worldClickedAt) {
-				clickedStation = station
-			}
+		// calculate distance to station in screen space
+		stationScreen := TransformVec(g.toScreen, station.Position)
+		distanceToStation := g.cursorScreen.DistanceTo(stationScreen)
+		isNear := distanceToStation < 32.0
+
+		if isNear || station.Village.Contains(g.cursorWorld) {
+			hoveredStation = station
+		}
+
+		if g.clicked && (isNear || station.Village.Contains(g.cursorWorld)) {
+			clickedStation = station
 		}
 	}
 
-	if clicked {
+	if g.clicked {
 		switch {
 		case clickedStation == nil:
 			// clicked outside of any village

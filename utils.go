@@ -8,6 +8,8 @@ import (
 	"github.com/quasilyte/gmath"
 	"golang.org/x/image/font"
 	"image/color"
+	"iter"
+	"math"
 	"sync/atomic"
 )
 
@@ -137,4 +139,29 @@ func MeasureText(face font.Face, text string) gmath.Vec {
 	height := size.Y.Ceil()
 
 	return gmath.Vec{X: float64(width), Y: float64(height)}
+}
+
+func MaxOf[T any](values iter.Seq[T], scoreOf func(value T) float64) T {
+	var bestScore = math.Inf(-1)
+	var bestValue T
+
+	for value := range values {
+		score := scoreOf(value)
+		if score > bestScore {
+			bestScore = score
+			bestValue = value
+		}
+	}
+
+	return bestValue
+}
+
+func Repeat[T any](n int, fn func() T) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		for range n {
+			if !yield(fn()) {
+				return
+			}
+		}
+	}
 }
