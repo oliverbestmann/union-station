@@ -109,7 +109,7 @@ func (g *Game) Reset(seed uint64) {
 func (g *Game) Update() error {
 	// initialize the game if needed
 	if g.noise == nil {
-		g.Reset(7)
+		g.Reset(g.seed)
 	}
 
 	// step to the next seed
@@ -255,11 +255,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		for _, station := range result.Stations {
 			loc := TransformVec(g.toScreen, station.Position).AsVec32()
 
-			color := rgbaOf(0x6d838eff)
-			vector.DrawFilledCircle(screen, loc.X, loc.Y, 10, color, true)
+			cInner, cOuter := rgbaOf(0x839ca9ff), rgbaOf(0x6d838eff)
 
-			color = rgbaOf(0x839ca9ff)
-			vector.DrawFilledCircle(screen, loc.X, loc.Y, 8, color, true)
+			// if the circle is hovered, select a different color palette
+			if g.hoveredStation == station {
+				cInner, cOuter = rgbaOf(0xb089abff), rgbaOf(0x8e6d89ff)
+			}
+
+			vector.DrawFilledCircle(screen, loc.X, loc.Y, 10, cOuter, true)
+			vector.DrawFilledCircle(screen, loc.X, loc.Y, 8, cInner, true)
 		}
 
 		if station := g.hoveredStation; station != nil {

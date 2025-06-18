@@ -15,6 +15,7 @@ func main() {
 	screenWidth, screenHeight := 800*windowScale, 480*windowScale
 
 	game := &Game{
+		seed:         14,
 		screenWidth:  screenWidth,
 		screenHeight: screenHeight,
 	}

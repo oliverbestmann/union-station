@@ -155,7 +155,7 @@ func NewStreetGenerator(rng *rand.Rand, clip Rect) StreetGenerator {
 	noise = fastnoiselite.NewNoise()
 	noise.SetNoiseType(fastnoiselite.NoiseTypeValueCubic)
 	noise.Seed = rng.Int32()
-	noise.Frequency = 0.001
+	noise.Frequency = 0.0008
 
 	return StreetGenerator{
 		Clip:  clip,
