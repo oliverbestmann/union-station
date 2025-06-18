@@ -16,48 +16,81 @@ func GenerateStations(rng *rand.Rand, clip Rect, villages []*Village) []*Station
 	var stations []*Station
 
 	for _, village := range villages {
-		stations = append(stations, GenerateStationsForVillage(rng, clip, village)...)
+		var bestScore float64 = -1
+		var bestStations []*Station
+
+		for range 5 {
+			newStations := generateStations(rng, clip, village)
+			score := stationScore(newStations)
+
+			if score > bestScore {
+				bestScore = score
+				bestStations = newStations
+			}
+		}
+		stations = append(stations, bestStations...)
 	}
 
 	return stations
 }
 
-func GenerateStationsForVillage(rng *rand.Rand, clip Rect, village *Village) []*Station {
-	var loc Vec
+func stationScore(stations []*Station) float64 {
+	var distanceSum float64
 
-	// check if the village is outside of the clip region
-	var inside bool
-	for _, point := range village.Hull {
-		if clip.Contains(point) {
-			inside = true
-			break
+	for _, a := range stations {
+		for _, b := range stations {
+			distanceSum += a.Position.DistanceTo(b.Position)
 		}
 	}
 
-	if !inside {
+	return distanceSum
+}
+
+func generateStations(rng *rand.Rand, clip Rect, village *Village) []*Station {
+	var loc Vec
+
+	// get the segments that lay within the clip bounds
+	segments := segmentsWithinClip(village, clip)
+	if len(segments) < 10 {
 		return nil
 	}
 
-	for {
-		loc = Vec{
-			X: randf(rng, village.BBox.Min.X, village.BBox.Max.X),
-			Y: randf(rng, village.BBox.Min.Y, village.BBox.Max.Y),
+	stationCount := populationCountOf(segments)/1000 + 1
+	var stations []*Station
+
+	for range stationCount {
+		for {
+			loc = Choose(rng, segments...).BBox().Center()
+
+			if !clip.Contains(loc) {
+				// discard this, it is outside of the region
+				continue
+			}
+
+			if PointInConvexHull(village.Hull, loc) {
+				break
+			}
 		}
 
-		if !clip.Contains(loc) {
-			// discard this, it is outside of the region
-			continue
-		}
-
-		if PointInConvexHull(village.Hull, loc) {
-			break
-		}
-	}
-
-	return []*Station{
-		{
+		stations = append(stations, &Station{
 			Position: loc,
 			Village:  village,
-		},
+		})
 	}
+
+	return stations
+}
+
+func segmentsWithinClip(village *Village, clip Rect) []*Segment {
+	var segments []*Segment
+
+	// The village is outside of the given rectangle if no point of the
+	// villages hull is inside the rect. This is not 100% fool proof, but good enough
+	for _, segment := range village.Segments {
+		if clip.Contains(segment.Center()) {
+			segments = append(segments, segment)
+		}
+	}
+
+	return segments
 }

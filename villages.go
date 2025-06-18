@@ -122,10 +122,11 @@ func CollectVillages(rng *rand.Rand, grid Grid, segments []*Segment) []*Village 
 		// only call it a village if we have some actual points
 		if len(cluster) > 32 && len(hull) >= 3 {
 			villages = append(villages, &Village{
-				Id:   len(villages) + 1,
-				Name: pop(&names),
-				Hull: hull,
-				BBox: bboxOf(hull),
+				Id:       len(villages) + 1,
+				Name:     pop(&names),
+				Hull:     hull,
+				BBox:     bboxOf(hull),
+				Segments: cluster,
 
 				PopulationCount: populationCountOf(cluster),
 			})
@@ -188,13 +189,8 @@ func DrawVillageBounds(target *ebiten.Image, village *Village, opts DrawVillageB
 	}
 
 	if opts.StrokeWidth > 0 {
-		toWorld := opts.ToScreen
-		toWorld.Invert()
-
-		strokeWidthWorld := TransformScalar(toWorld, 2)
-
 		StrokePath(target, path, opts.ToScreen, opts.StrokeColor, &vector.StrokeOptions{
-			Width:    float32(strokeWidthWorld),
+			Width:    2,
 			LineJoin: vector.LineJoinRound,
 			LineCap:  vector.LineCapSquare,
 		})

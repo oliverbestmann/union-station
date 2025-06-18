@@ -110,6 +110,10 @@ func (s *Segment) DistanceTo(other *Segment) float64 {
 	return math.Sqrt(distanceSqr)
 }
 
+func (s *Segment) Center() Vec {
+	return s.Start.Add(s.End).Mulf(0.5)
+}
+
 type PendingSegmentQueue []PendingSegment
 
 func (p *PendingSegmentQueue) Len() int {

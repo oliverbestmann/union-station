@@ -25,11 +25,16 @@ func pop[T any](values *[]T) T {
 	return value
 }
 
-func StrokePath(target *ebiten.Image, path vector.Path, tr ebiten.GeoM, color color.Color, vop *vector.StrokeOptions) {
+func StrokePath(target *ebiten.Image, path vector.Path, toScreen ebiten.GeoM, color color.Color, vop *vector.StrokeOptions) {
+	toWorld := toScreen
+	toWorld.Invert()
+
+	vop.Width = float32(TransformScalar(toWorld, float64(vop.Width)))
+
 	vertices, indices := path.AppendVerticesAndIndicesForStroke(nil, nil, vop)
 
 	for idx := range vertices {
-		x, y := tr.Apply(float64(vertices[idx].DstX), float64(vertices[idx].DstY))
+		x, y := toScreen.Apply(float64(vertices[idx].DstX), float64(vertices[idx].DstY))
 		vertices[idx].DstX = float32(x)
 		vertices[idx].DstY = float32(y)
 	}
