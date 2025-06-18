@@ -1,6 +1,13 @@
 package main
 
-import "math/rand/v2"
+import (
+	"math/rand/v2"
+)
+
+func RandWithSeed(seed uint64) *rand.Rand {
+	return rand.New(rand.NewPCG(seed, seed))
+
+}
 
 func randf[T ~float64](rng *rand.Rand, min, max T) T {
 	return T(rng.Float64())*(max-min) + min

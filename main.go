@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/hajimehoshi/bitmapfont"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"log"
 	"math"
+	"math/rand/v2"
 	"slices"
 	"time"
 )
@@ -45,15 +46,28 @@ type Game struct {
 	streets       *ebiten.Image
 	villagesAsync Promise[VillageCalculation]
 
-	selectedVillage *Village
+	hoveredVillage     *Village
+	selectedVillageOne *Village
+	selectedVillageTwo *Village
 
-	tr    ebiten.GeoM
-	trInv ebiten.GeoM
+	toScreen ebiten.GeoM
+	toWorld  ebiten.GeoM
 
-	gen StreetGenerator
+	cursorWorld  Vec
+	cursorScreen Vec
+
+	rng  *rand.Rand
+	gen  StreetGenerator
+	seed uint64
 }
 
-func (g *Game) Init() {
+func (g *Game) Reset(seed uint64) {
+	*g = Game{
+		seed:         seed,
+		screenWidth:  g.screenWidth,
+		screenHeight: g.screenHeight,
+	}
+
 	g.startTime = time.Now()
 	g.lastUpdate = time.Now()
 
@@ -63,23 +77,25 @@ func (g *Game) Init() {
 	scale := float64(g.screenWidth) / worldWidth
 
 	g.worldScale = scale
-	g.tr.Scale(scale, scale)
+	g.toScreen.Scale(scale, scale)
 
-	// create an inverse of the transform to paint the noise data based
-	// on the pixel position
-	g.trInv = g.tr
-	g.trInv.Invert()
+	// create an inverse of the transform to transform from screen coordinates
+	// to world coordinates
+	g.toWorld = g.toScreen
+	g.toWorld.Invert()
 
 	// calculate world size based on transformed screen size
-	x0, y0 := g.trInv.Apply(0, 0)
-	x1, y1 := g.trInv.Apply(float64(g.screenWidth), float64(g.screenHeight))
+	x0, y0 := g.toWorld.Apply(0, 0)
+	x1, y1 := g.toWorld.Apply(float64(g.screenWidth), float64(g.screenHeight))
 	g.worldSize = Rect{Min: Vec{X: x0, Y: y0}, Max: Vec{X: x1, Y: y1}}
 
+	g.rng = RandWithSeed(seed)
+
 	// discard streets outside of the visible world
-	g.gen = NewStreetGenerator(g.worldSize, 1)
+	g.gen = NewStreetGenerator(g.rng, g.worldSize)
 
 	// generate an image from noise
-	g.noise = noiseToImage(g.gen.noise, g.screenWidth, g.screenHeight, g.trInv)
+	g.noise = noiseToImage(g.gen.Noise(), g.screenWidth, g.screenHeight, g.toWorld)
 
 	// create an empty image for the streets
 	g.streets = ebiten.NewImage(g.screenWidth, g.screenHeight)
@@ -100,6 +116,15 @@ func (g *Game) Init() {
 // Update proceeds the game state.
 // Update is called every tick (1/60 [s] by default).
 func (g *Game) Update() error {
+	if g.noise == nil {
+		// initialize the game
+		g.Reset(7)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		g.Reset(g.seed + 1)
+	}
+
 	now := time.Now()
 	dt := now.Sub(g.lastUpdate).Seconds()
 	g.lastUpdate = now
@@ -108,10 +133,13 @@ func (g *Game) Update() error {
 
 	var newSegmentCount int
 
+	g.cursorWorld = CursorPosition(g.toWorld)
+	g.cursorScreen = CursorPosition(ebiten.GeoM{})
+
 	for g.gen.More() && time.Since(now) < 12*time.Millisecond {
 		if segment := g.gen.Next(); segment != nil {
 			// draw the segment to the street image
-			segment.Draw(g.streets, g.tr)
+			segment.Draw(g.streets, g.toScreen)
 			newSegmentCount += 1
 		}
 	}
@@ -129,7 +157,7 @@ func (g *Game) Update() error {
 
 			// paint the streets again
 			for idx, segment := range g.gen.segments {
-				segment.Draw(image, g.tr)
+				segment.Draw(image, g.toScreen)
 
 				if idx%1_000 == 0 {
 					// suspend on wasm if needed
@@ -138,10 +166,10 @@ func (g *Game) Update() error {
 			}
 
 			// find villages
-			villages := VillagesOf(g.gen.rng, g.gen.grid, g.gen.Segments())
+			villages := VillagesOf(g.rng, g.gen.grid, g.gen.Segments())
 
 			// find one or more stations per village
-			stations := GenerateStations(g.gen.rng, villages)
+			stations := GenerateStations(g.rng, villages)
 
 			stations = slices.DeleteFunc(stations, func(station *Station) bool {
 				// remove stations that are near the border
@@ -165,23 +193,49 @@ func (g *Game) Update() error {
 		g.streets = res.Image
 	}
 
-	// check if any village should be highlighted
+	worldClickedAt, clicked := Clicked(g.toWorld)
+
+	var clickedVillage, hoveredVillage *Village
+
 	if villages := g.villagesAsync.Get(); villages != nil {
-		worldCursor := CursorPosition(g.trInv)
-
-		// reset selected villages
-		g.selectedVillage = nil
-
 		for _, village := range villages.Villages {
-			if !village.BBox.Contains(worldCursor) {
-				continue
+			if village.Contains(g.cursorWorld) {
+				hoveredVillage = village
 			}
 
-			if PointInConvexHull(village.Hull, worldCursor) {
-				g.selectedVillage = village
+			if clicked && village.Contains(worldClickedAt) {
+				clickedVillage = village
 			}
 		}
 	}
+
+	if clicked {
+		switch {
+		case clickedVillage == nil:
+			// clicked outside of any village
+			g.selectedVillageOne = nil
+			g.selectedVillageTwo = nil
+
+		case g.selectedVillageOne == nil:
+			// select the clicked village (or nil, if none was clicked)
+			g.selectedVillageOne = clickedVillage
+
+		case g.selectedVillageTwo == nil:
+			// select the clicked village (or nil, if none was clicked)
+			g.selectedVillageTwo = clickedVillage
+
+		case g.selectedVillageOne != nil && g.selectedVillageTwo != nil:
+			// re-select only the second village
+			g.selectedVillageTwo = clickedVillage
+		}
+	}
+
+	if hoveredVillage == g.selectedVillageOne || hoveredVillage == g.selectedVillageTwo {
+		// do not hover one of the selected villages
+		hoveredVillage = nil
+	}
+
+	g.hoveredVillage = hoveredVillage
 
 	return nil
 }
@@ -189,7 +243,7 @@ func (g *Game) Update() error {
 // Draw draws the game screen.
 // Draw is called every frame (typically 1/60[s] for 60Hz display).
 func (g *Game) Draw(screen *ebiten.Image) {
-	tr := g.tr
+	tr := g.toScreen
 
 	screen.DrawImage(g.streets, nil)
 
@@ -205,7 +259,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if result := g.villagesAsync.Get(); result != nil {
 		// paint the stations
 		for _, station := range result.Stations {
-			loc := TransformVec(g.tr, station.Position).AsVec32()
+			loc := TransformVec(g.toScreen, station.Position).AsVec32()
 
 			color := rgbaOf(0x6d838eff)
 			vector.DrawFilledCircle(screen, loc.X, loc.Y, 10, color, true)
@@ -214,48 +268,117 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			vector.DrawFilledCircle(screen, loc.X, loc.Y, 8, color, true)
 		}
 
-		if g.selectedVillage != nil {
-			MarkVillage(screen, g.tr, g.selectedVillage)
+		if g.hoveredVillage != nil {
+			DrawVillageBounds(screen, g.hoveredVillage, DrawVillageBoundsOptions{
+				ToScreen:  g.toScreen,
+				FillColor: rgbaOf(0x83838320),
+			})
+
+			DrawVillageTooltip(screen, g.cursorScreen.Add(Vec{X: 16, Y: 16}), g.hoveredVillage)
+		}
+
+		if g.selectedVillageOne != nil {
+			DrawVillageBounds(screen, g.selectedVillageOne, DrawVillageBoundsOptions{
+				ToScreen:    g.toScreen,
+				FillColor:   rgbaOf(0xb089ab50),
+				StrokeColor: rgbaOf(0xb089abff),
+				StrokeWidth: 2,
+			})
+		}
+
+		if g.selectedVillageTwo != nil {
+			DrawVillageBounds(screen, g.selectedVillageTwo, DrawVillageBoundsOptions{
+				ToScreen:    g.toScreen,
+				FillColor:   rgbaOf(0xb089ab50),
+				StrokeColor: rgbaOf(0xb089abff),
+				StrokeWidth: 2,
+			})
+		}
+
+		if g.selectedVillageOne != nil && g.selectedVillageTwo != nil {
+			// we have two selected villages, draw a dummy connection between them
+			DrawVillageConnection(screen, g.toScreen, result.Stations, g.selectedVillageOne, g.selectedVillageTwo)
 		}
 	}
 
 	// if we're busy, paint a busy indicator
 	if g.villagesAsync.Waiting() {
 		offsetY := 4 * math.Sin(time.Since(TimeOrigin).Seconds()*5)
-		bounds := MeasureText(bitmapfont.Gothic12r, "please wait...")
+		bounds := MeasureText(Font, "please wait...")
 
 		var op ebiten.DrawImageOptions
 		op.GeoM.Translate(-0.5*bounds.X, -0.5*bounds.Y)
 		op.GeoM.Scale(3.0, 3.0)
 		op.GeoM.Translate(float64(g.screenWidth)/2, float64(g.screenHeight)/2+offsetY)
 		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
-		text.DrawWithOptions(screen, "please wait...", bitmapfont.Gothic12r, &op)
+		text.DrawWithOptions(screen, "please wait...", Font, &op)
 	}
 
 	var op ebiten.DrawImageOptions
 	op.GeoM.Translate(32, 32)
 	op.ColorScale.ScaleWithColor(DebugColor)
 
-	t := fmt.Sprintf("%1.1f fps", ebiten.ActualFPS())
-	text.DrawWithOptions(screen, t, bitmapfont.Gothic12r, &op)
+	t := fmt.Sprintf("%1.1f fps, seed %d", ebiten.ActualFPS(), g.seed)
+	text.DrawWithOptions(screen, t, Font, &op)
 	op.GeoM.Translate(0, 16)
 
 	t = fmt.Sprintf("Street Segments: %d", len(g.gen.segments))
-	text.DrawWithOptions(screen, t, bitmapfont.Gothic12r, &op)
+	text.DrawWithOptions(screen, t, Font, &op)
 	op.GeoM.Translate(0, 16)
 
 	if !g.streetGenerationEndTime.IsZero() {
 		t = fmt.Sprintf("Street generation took %s", g.streetGenerationEndTime.Sub(g.startTime))
-		text.DrawWithOptions(screen, t, bitmapfont.Gothic12r, &op)
+		text.DrawWithOptions(screen, t, Font, &op)
 		op.GeoM.Translate(0, 16)
 	}
 
 	if g.villagesAsync.Waiting() {
 		t = "Calculating villages"
-		text.DrawWithOptions(screen, t, bitmapfont.Gothic12r, &op)
+		text.DrawWithOptions(screen, t, Font, &op)
 		op.GeoM.Translate(0, 16)
 	}
 
+}
+
+func DrawVillageConnection(target *ebiten.Image, toScreen ebiten.GeoM, stations []*Station, one *Village, two *Village) {
+	var stationOne, stationTwo *Station
+	for _, station := range stations {
+		if station.Village == one {
+			stationOne = station
+		}
+
+		if station.Village == two {
+			stationTwo = station
+		}
+	}
+
+	if stationOne == nil || stationTwo == nil {
+		return
+	}
+
+	// work in screen space
+	start := TransformVec(toScreen, stationOne.Position).AsVec32()
+	end := TransformVec(toScreen, stationTwo.Position).AsVec32()
+
+	// calculate length & direction to lerp across the screen
+	length := end.Sub(start).Len()
+	direction := end.Sub(start).Normalized()
+
+	var path vector.Path
+
+	const segmentLen = 20
+
+	for f := float32(0); f < length; f += segmentLen {
+		a := start.Add(direction.Mulf(f))
+		b := start.Add(direction.Mulf(min(f+segmentLen/2, length)))
+
+		path.MoveTo(a.X, a.Y)
+		path.LineTo(b.X, b.Y)
+	}
+
+	StrokePath(target, path, ebiten.GeoM{}, rgbaOf(0x8e6d89ff), &vector.StrokeOptions{
+		Width: 4.0,
+	})
 }
 
 // Layout takes the outside size (e.g., the window size) and returns the (logical) screen size.
@@ -273,8 +396,6 @@ func main() {
 		screenWidth:  screenWidth,
 		screenHeight: screenHeight,
 	}
-
-	game.Init()
 
 	// Specify the window size as you like. Here, a doubled size is specified.
 	ebiten.SetWindowSize(screenWidth, screenHeight)

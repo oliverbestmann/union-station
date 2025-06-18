@@ -2,11 +2,12 @@ package main
 
 import (
 	"fmt"
-	"github.com/hajimehoshi/bitmapfont"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
+	"image/color"
 	"math"
 	"math/rand/v2"
 )
@@ -28,6 +29,14 @@ type Village struct {
 
 	/// Number of people living this village
 	PopulationCount int
+}
+
+func (v *Village) Contains(pos Vec) bool {
+	if !v.BBox.Contains(pos) {
+		return false
+	}
+
+	return PointInConvexHull(v.Hull, pos)
 }
 
 type GridIndex struct {
@@ -164,45 +173,94 @@ func bboxOf(vecs []Vec) Rect {
 	}
 }
 
-func MarkVillage(target *ebiten.Image, tr ebiten.GeoM, village *Village) {
-	trInv := tr
-	trInv.Invert()
+type DrawVillageBoundsOptions struct {
+	ToScreen    ebiten.GeoM
+	StrokeWidth float64
+	StrokeColor color.NRGBA
+	FillColor   color.NRGBA
+}
 
-	hull := village.Hull
+func DrawVillageBounds(target *ebiten.Image, village *Village, opts DrawVillageBoundsOptions) {
+	path := pathOf(village.Hull, true)
 
-	var path vector.Path
-
-	// start with last point
-	n := len(hull) - 1
-	path.MoveTo(float32(hull[n].X), float32(hull[n].Y))
-
-	for _, point := range hull {
-		path.LineTo(float32(point.X), float32(point.Y))
+	if opts.FillColor.A > 0 {
+		FillPath(target, path, opts.ToScreen, opts.FillColor)
 	}
 
-	FillPath(target, path, tr, rgbaOf(0x83838320))
+	if opts.StrokeWidth > 0 {
+		toWorld := opts.ToScreen
+		toWorld.Invert()
 
-	bounds := MeasureText(bitmapfont.Gothic12r, village.Name).Mulf(0.5)
-	_ = bounds
+		strokeWidthWorld := TransformScalar(toWorld, 2)
 
-	// paint the name of the village
-	center := TransformVec(tr, village.BBox.Center())
+		StrokePath(target, path, opts.ToScreen, opts.StrokeColor, &vector.StrokeOptions{
+			Width:    float32(strokeWidthWorld),
+			LineJoin: vector.LineJoinRound,
+			LineCap:  vector.LineCapSquare,
+		})
+	}
+}
 
+func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
+	// anchor tooltip at the top left corner
+	pos = pos.Add(Vec{X: 16, Y: 24})
+
+	tPopulation := fmt.Sprintf("Population: %d", village.PopulationCount)
+
+	// calculate the size we need to draw the text
+	bName := MeasureText(Font, village.Name).Mulf(2.0)
+	bPopulation := MeasureText(Font, tPopulation)
+
+	// draw tooltip
+	{
+		pos := pos.Sub(Vec{X: 16, Y: 24})
+		size := Vec{X: max(bName.X, bPopulation.X) + 16, Y: bName.Y + bPopulation.Y}
+
+		var cm colorm.ColorM
+		cm.ScaleWithColor(rgbaOf(0xeee1c4ff))
+
+		var op colorm.DrawImageOptions
+		op.GeoM.Scale(size.X, size.Y)
+		op.GeoM.Translate(pos.X, pos.Y)
+		colorm.DrawImage(target, whiteImage, cm, &op)
+	}
+
+	// draw header line
 	{
 		var op ebiten.DrawImageOptions
 		op.GeoM.Scale(2.0, 2.0)
-		op.GeoM.Translate(center.X, center.Y)
+		op.GeoM.Translate(pos.X, pos.Y)
 		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
-		text.DrawWithOptions(target, village.Name, bitmapfont.Gothic12r, &op)
+		text.DrawWithOptions(target, village.Name, Font, &op)
 	}
 
+	// draw population
 	{
 		var op ebiten.DrawImageOptions
-		op.GeoM.Translate(center.X-4, center.Y+16.0)
+		op.GeoM.Translate(pos.X-4, pos.Y+16.0)
 		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
-		t := fmt.Sprintf("Population: %d", village.PopulationCount)
-		text.DrawWithOptions(target, t, bitmapfont.Gothic12r, &op)
+		text.DrawWithOptions(target, tPopulation, Font, &op)
 	}
+}
+
+func pathOf(points []Vec, close bool) vector.Path {
+	var path vector.Path
+
+	if len(points) < 2 {
+		return path
+	}
+
+	path.MoveTo(float32(points[0].X), float32(points[0].Y))
+
+	for _, point := range points[1:] {
+		path.LineTo(float32(point.X), float32(point.Y))
+	}
+
+	if close {
+		path.Close()
+	}
+
+	return path
 }
 
 //goland:noinspection ALL

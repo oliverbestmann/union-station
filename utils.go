@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/hajimehoshi/bitmapfont"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -10,9 +11,7 @@ import (
 	"sync/atomic"
 )
 
-func posOf(vec gmath.Vec) gmath.Pos {
-	return gmath.MakePos(vec)
-}
+var Font = bitmapfont.Gothic12r
 
 func pop[T any](values *[]T) T {
 	n := len(*values)

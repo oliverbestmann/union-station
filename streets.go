@@ -2,7 +2,6 @@ package main
 
 import (
 	"container/heap"
-	"encoding/binary"
 	"github.com/furui/fastnoiselite-go"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -147,12 +146,7 @@ type StreetGenerator struct {
 	grid          Grid
 }
 
-func NewStreetGenerator(clip Rect, seed uint64) StreetGenerator {
-	var buf [32]byte
-	binary.LittleEndian.AppendUint64(buf[:0], seed)
-
-	rng := rand.New(rand.NewChaCha8(buf))
-
+func NewStreetGenerator(rng *rand.Rand, clip Rect) StreetGenerator {
 	noise := fastnoiselite.NewNoise()
 	noise = fastnoiselite.NewNoise()
 	noise.SetNoiseType(fastnoiselite.NoiseTypeValueCubic)
@@ -164,6 +158,10 @@ func NewStreetGenerator(clip Rect, seed uint64) StreetGenerator {
 		rng:   rng,
 		noise: noise,
 	}
+}
+
+func (gen *StreetGenerator) Noise() *fastnoiselite.FastNoiseLite {
+	return gen.noise
 }
 
 func (gen *StreetGenerator) More() bool {
@@ -402,13 +400,13 @@ func lineIntersection(p1, p2, q1, q2 Vec) (Vec, bool) {
 	return p1.Add(p2.Sub(p1).Mulf(t)), ok
 }
 
-func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, tr ebiten.GeoM) *ebiten.Image {
+func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, toWorld ebiten.GeoM) *ebiten.Image {
 	pixels := make([]uint8, width*height*4)
 
 	var pos int
 	for y := range height {
 		for x := range width {
-			trX, trY := tr.Apply(float64(x), float64(y))
+			trX, trY := toWorld.Apply(float64(x), float64(y))
 
 			noiseValue := noiseValueAt(noise, Vec{X: trX, Y: trY})
 
