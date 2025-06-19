@@ -1,5 +1,10 @@
 package main
 
+import (
+	"slices"
+	"time"
+)
+
 type StationGraph struct {
 	edges []*StationEdge
 }
@@ -23,13 +28,19 @@ func (sg *StationGraph) Insert(one, two *Station) (*StationEdge, bool) {
 	return edge, true
 }
 
+func (sg *StationGraph) Remove(one *Station, two *Station) {
+	sg.edges = slices.DeleteFunc(sg.edges, func(edge *StationEdge) bool {
+		return edge.Is(one, two)
+	})
+}
+
 func (sg *StationGraph) Edges() []*StationEdge {
 	return sg.edges
 }
 
 func (sg *StationGraph) Get(one, two *Station) *StationEdge {
 	for _, edge := range sg.edges {
-		if edge.One == one && edge.Two == two || edge.Two == one && edge.One == two {
+		if edge.Is(one, two) {
 			return edge
 		}
 	}
@@ -53,8 +64,9 @@ func (sg *StationGraph) EdgesOf(station *Station) []*StationEdge {
 }
 
 type StationEdge struct {
-	One *Station
-	Two *Station
+	Created time.Time
+	One     *Station
+	Two     *Station
 }
 
 func (edge *StationEdge) Contains(other *Station) bool {
@@ -71,4 +83,9 @@ func (edge *StationEdge) OtherStation(station *Station) *Station {
 	} else {
 		return edge.One
 	}
+}
+
+func (edge *StationEdge) Is(one, two *Station) bool {
+	return edge.One == one && edge.Two == two ||
+		edge.One == two && edge.Two == one
 }

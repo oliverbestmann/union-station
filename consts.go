@@ -22,7 +22,14 @@ var StationColorIdle = StationColor{
 	Stroke: rgbaOf(0x6d838eff),
 }
 
+var StationColorPlanned = StationColor{
+	Fill:   rgbaOf(0xcc9970ff),
+	Stroke: rgbaOf(0xa97e5cff),
+}
+
 var StationColorConstructed = StationColor{
 	Fill:   rgbaOf(0x87a985ff),
 	Stroke: rgbaOf(0x6f8b6eff),
 }
+
+var BackgroundColor = rgbaOf(0xdbcfb1ff)

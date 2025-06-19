@@ -30,12 +30,13 @@ type Game struct {
 
 	debug bool
 
-	startTime               time.Time
+	startTime time.Time
+	now       time.Time
+	elapsed   time.Duration
+
 	streetGenerationEndTime time.Time
 
 	worldSize Rect
-
-	lastUpdate time.Time
 
 	noise         *ebiten.Image
 	streets       *ebiten.Image
@@ -56,12 +57,14 @@ type Game struct {
 	gen  StreetGenerator
 	seed uint64
 
-	btnAcceptConnection *Button
-	btnDesignConnection *Button
-	btnCancelConnection *Button
+	btnAcceptConnection   *Button
+	btnPlanningConnection *Button
+	btnCancelConnection   *Button
 
-	stationGraph StationGraph
-	audio        Audio
+	acceptedGraph StationGraph
+	planningGraph StationGraph
+
+	audio Audio
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -82,7 +85,7 @@ func (g *Game) Reset(seed uint64) {
 	}
 
 	g.startTime = time.Now()
-	g.lastUpdate = time.Now()
+	g.now = time.Now()
 
 	// base size, used for scaling
 	worldWidth := 32000.0
@@ -109,7 +112,7 @@ func (g *Game) Reset(seed uint64) {
 
 	// create an empty image for the streets
 	g.streets = ebiten.NewImage(g.screenWidth, g.screenHeight)
-	g.streets.Fill(rgbaOf(0xdbcfb1ff))
+	g.streets.Fill(BackgroundColor)
 
 	// enqueue a starting point for the street generator
 	g.gen.Push(PendingSegment{
@@ -139,8 +142,9 @@ func (g *Game) Update() error {
 
 	// calculate delta time for animations
 	now := time.Now()
-	dt := now.Sub(g.lastUpdate).Seconds()
-	g.lastUpdate = now
+	dt := now.Sub(g.now).Seconds()
+	g.now = now
+	g.elapsed = now.Sub(g.startTime)
 
 	_ = dt
 
@@ -199,18 +203,24 @@ func (g *Game) Input() {
 
 	//goland:noinspection GoDfaConstantCondition
 	inputIntercepted = g.btnAcceptConnection.Hover(g.cursorScreen) || inputIntercepted
-	inputIntercepted = g.btnDesignConnection.Hover(g.cursorScreen) || inputIntercepted
+	inputIntercepted = g.btnPlanningConnection.Hover(g.cursorScreen) || inputIntercepted
 	inputIntercepted = g.btnCancelConnection.Hover(g.cursorScreen) || inputIntercepted
 
 	// check button inputs
 	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
 		// accept the station
-		g.stationGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
+		edge, _ := g.acceptedGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
+		edge.Created = g.now
+
+		// and remove it from planning, if it is still in there
+		g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
+
 		g.resetInput()
 	}
 
-	if g.btnDesignConnection.IsClicked(g.cursorScreen, g.clicked) {
+	if g.btnPlanningConnection.IsClicked(g.cursorScreen, g.clicked) {
 		// hide all buttons
+		g.planningGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
 		g.resetInput()
 	}
 
@@ -242,7 +252,7 @@ func (g *Game) Input() {
 		noStationSelected := currentStation == nil
 
 		// if the hovered station is already connected to the first station, we do not allow to hover or click it
-		if g.selectedStationOne != nil && g.stationGraph.Has(g.selectedStationOne, currentStation) {
+		if g.selectedStationOne != nil && g.acceptedGraph.Has(g.selectedStationOne, currentStation) {
 			currentStation = nil
 		}
 
@@ -262,7 +272,7 @@ func (g *Game) Input() {
 				// show the buttons near the click location
 				buttonVec := g.cursorScreen.Add(vecSplat(-16))
 				g.btnAcceptConnection = NewButton("Build", buttonVec)
-				g.btnDesignConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}))
+				g.btnPlanningConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}))
 				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}))
 			}
 		}
@@ -280,7 +290,7 @@ func (g *Game) resetInput() {
 	g.selectedStationOne = nil
 	g.selectedStationTwo = nil
 	g.btnAcceptConnection = nil
-	g.btnDesignConnection = nil
+	g.btnPlanningConnection = nil
 	g.btnCancelConnection = nil
 }
 
@@ -288,7 +298,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 	yield("Drawing streets")
 
 	image := ebiten.NewImage(g.screenWidth, g.screenHeight)
-	image.Fill(rgbaOf(0xdbcfb1ff))
+	image.Fill(BackgroundColor)
 
 	var idle IdleSuspend
 
@@ -346,7 +356,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	g.btnAcceptConnection.Draw(screen)
-	g.btnDesignConnection.Draw(screen)
+	g.btnPlanningConnection.Draw(screen)
 	g.btnCancelConnection.Draw(screen)
 
 	// if we're busy, paint a busy indicator
@@ -363,20 +373,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	if g.debug {
-		g.DrawDebugLines(screen)
+		g.DrawDebugText(screen)
 	}
 }
 
 func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {
-	// walk through the edges we've added and paint them
-	for _, edge := range g.stationGraph.Edges() {
-		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, StationColorConstructed)
+	// walk through the edges we've planned and paint them
+	for _, edge := range g.planningGraph.Edges() {
+		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, StationColorPlanned)
+	}
+
+	// walk through the edges we've constructed and paint them
+	for _, edge := range g.acceptedGraph.Edges() {
+		offset := time.Now().Sub(edge.Created)
+		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, offset, false, StationColorConstructed)
 	}
 
 	// paint the edges of the currently planed route
 	if g.selectedStationOne != nil && g.selectedStationTwo != nil {
 		// we have two selected villages, draw a dummy connection between them
-		DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo, StationColorSelected)
+		DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo, 0, false, StationColorSelected)
 	}
 
 	// paint the stations
@@ -429,14 +445,17 @@ func (g *Game) stationColorOf(station *Station) StationColor {
 	case g.hoveredStation == station:
 		stationColor = StationColorHover
 
-	case len(g.stationGraph.EdgesOf(station)) > 0:
+	case len(g.acceptedGraph.EdgesOf(station)) > 0:
 		stationColor = StationColorConstructed
+
+	case len(g.planningGraph.EdgesOf(station)) > 0:
+		stationColor = StationColorPlanned
 	}
 
 	return stationColor
 }
 
-func (g *Game) DrawDebugLines(screen *ebiten.Image) {
+func (g *Game) DrawDebugText(screen *ebiten.Image) {
 	var op ebiten.DrawImageOptions
 	op.GeoM.Translate(32, 32)
 	op.ColorScale.ScaleWithColor(DebugColor)

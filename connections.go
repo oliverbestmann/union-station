@@ -3,9 +3,11 @@ package main
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"math"
+	"time"
 )
 
-func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two *Station, stationColor StationColor) {
+func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two *Station, offset time.Duration, thin bool, stationColor StationColor) {
 	// work in screen space
 	start := TransformVec(toScreen, one.Position).AsVec32()
 	end := TransformVec(toScreen, two.Position).AsVec32()
@@ -18,7 +20,11 @@ func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two 
 
 	const segmentLen = 20
 
-	for f := float32(0); f < length; f += segmentLen {
+	// calculate starting offset
+	rem := math.Remainder(offset.Seconds()*5.0, segmentLen)
+	f := float32(rem)
+
+	for ; f < length; f += segmentLen {
 		a := start.Add(direction.Mulf(f))
 		b := start.Add(direction.Mulf(min(f+segmentLen/2, length)))
 
@@ -26,7 +32,13 @@ func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two 
 		path.LineTo(b.X, b.Y)
 	}
 
-	StrokePath(target, path, ebiten.GeoM{}, stationColor.Stroke, &vector.StrokeOptions{
+	vop := &vector.StrokeOptions{
 		Width: 4.0,
-	})
+	}
+
+	if thin {
+		vop.Width = 2.0
+	}
+
+	StrokePath(target, path, ebiten.GeoM{}, stationColor.Stroke, vop)
 }
