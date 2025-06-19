@@ -14,6 +14,7 @@ import (
 )
 
 type VillageCalculation struct {
+	EndTime  time.Time
 	Image    *ebiten.Image
 	Villages []*Village
 	Stations []*Station
@@ -246,6 +247,7 @@ func (g *Game) prepareVillages(yield func(string)) VillageCalculation {
 	stations := GenerateStations(g.rng, clip, villages)
 
 	return VillageCalculation{
+		EndTime:  time.Now(),
 		Image:    image,
 		Villages: villages,
 		Stations: stations,
@@ -342,6 +344,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	if !g.streetGenerationEndTime.IsZero() {
 		t = fmt.Sprintf("Street generation took %s", g.streetGenerationEndTime.Sub(g.startTime))
+		text.DrawWithOptions(screen, t, Font, &op)
+		op.GeoM.Translate(0, 16)
+	}
+
+	if result := g.villagesAsync.Get(); result != nil {
+		t = fmt.Sprintf("City generation took %s", result.EndTime.Sub(g.startTime))
 		text.DrawWithOptions(screen, t, Font, &op)
 		op.GeoM.Translate(0, 16)
 	}
