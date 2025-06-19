@@ -5,7 +5,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"github.com/quasilyte/gmath"
+	. "github.com/quasilyte/gmath"
 	"golang.org/x/image/font"
 	"image/color"
 	"iter"
@@ -112,12 +112,12 @@ func (p Promise[T, P]) Waiting() bool {
 
 func TransformScalar(tr ebiten.GeoM, value float64) float64 {
 	x, y := tr.Apply(value, 0.0)
-	return gmath.Vec{X: x, Y: y}.Len()
+	return Vec{X: x, Y: y}.Len()
 }
 
-func TransformVec(tr ebiten.GeoM, value gmath.Vec) gmath.Vec {
+func TransformVec(tr ebiten.GeoM, value Vec) Vec {
 	x, y := tr.Apply(value.X, value.Y)
-	return gmath.Vec{X: x, Y: y}
+	return Vec{X: x, Y: y}
 }
 
 func rgbaOf(rgba uint32) color.NRGBA {
@@ -131,14 +131,14 @@ func rgbaOf(rgba uint32) color.NRGBA {
 
 var DebugColor = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
 
-func MeasureText(face font.Face, text string) gmath.Vec {
+func MeasureText(face font.Face, text string) Vec {
 	bounds, _ := font.BoundString(face, text)
 
 	size := bounds.Max.Sub(bounds.Min)
 	width := size.X.Ceil()
 	height := size.Y.Ceil()
 
-	return gmath.Vec{X: float64(width), Y: float64(height)}
+	return Vec{X: float64(width), Y: float64(height)}
 }
 
 func MaxOf[T any](values iter.Seq[T], scoreOf func(value T) float64) T {
@@ -163,5 +163,16 @@ func Repeat[T any](n int, fn func() T) iter.Seq[T] {
 				return
 			}
 		}
+	}
+}
+
+func vecSplat(val float64) Vec {
+	return Vec{X: val, Y: val}
+}
+
+func imageSizeOf(image *ebiten.Image) Vec {
+	return Vec{
+		X: float64(image.Bounds().Dx()),
+		Y: float64(image.Bounds().Dy()),
 	}
 }

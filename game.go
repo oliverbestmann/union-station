@@ -54,7 +54,8 @@ type Game struct {
 	gen  StreetGenerator
 	seed uint64
 
-	objects []Drawable
+	btnAcceptConnection *Button
+	btnCancelConnection *Button
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -173,59 +174,71 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Input() {
-	var clickedStation, hoveredStation *Station
-
 	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
 		g.debug = !g.debug
 	}
 
-	if result := g.villagesAsync.Get(); result != nil {
-		// get the station that is nearest to the mouse
-		station := MaxOf(slices.Values(result.Stations), func(station *Station) float64 {
-			return -g.cursorWorld.DistanceSquaredTo(station.Position)
-		})
+	var inputIntercepted bool
 
-		// calculate distance to station in screen space
-		stationScreen := TransformVec(g.toScreen, station.Position)
-		distanceToStation := g.cursorScreen.DistanceTo(stationScreen)
-		isNear := distanceToStation < 32.0
-
-		if isNear || station.Village.Contains(g.cursorWorld) {
-			hoveredStation = station
-		}
-
-		if g.clicked && (isNear || station.Village.Contains(g.cursorWorld)) {
-			clickedStation = station
+	for _, button := range g.buttons() {
+		if button.Hover(g.cursorScreen) {
+			// button intercepts all input
+			inputIntercepted = true
 		}
 	}
 
-	// handle object input
-	for _, object := range slices.Clone(g.objects) {
-		if object, ok := object.(Clickable); ok {
-			if object.Click(g.toScreen, g.cursorScreen) {
-				// also prevent any clicks to the stations
-				clickedStation = nil
+	// check button inputs
+	if g.btnCancelConnection.IsClicked(g.cursorScreen, g.clicked) {
+		// hide all buttons
+		g.resetInput()
+	}
 
-				// stop click propagation
-				break
+	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
+		// TODO
+		fmt.Println("Accept clicked")
+	}
+
+	var clickedStation, hoveredStation *Station
+
+	if !inputIntercepted {
+		if result := g.villagesAsync.Get(); result != nil {
+			// get the station that is nearest to the mouse
+			station := MaxOf(slices.Values(result.Stations), func(station *Station) float64 {
+				return -g.cursorWorld.DistanceSquaredTo(station.Position)
+			})
+
+			// calculate distance to station in screen space
+			stationScreen := TransformVec(g.toScreen, station.Position)
+			distanceToStation := g.cursorScreen.DistanceTo(stationScreen)
+			isNear := distanceToStation < 32.0
+
+			if isNear || station.Village.Contains(g.cursorWorld) {
+				hoveredStation = station
+			}
+
+			if g.clicked && (isNear || station.Village.Contains(g.cursorWorld)) {
+				clickedStation = station
 			}
 		}
-	}
 
-	if g.clicked {
-		switch {
-		case clickedStation == nil:
-			// clicked outside of any village
-			g.selectedStationOne = nil
-			g.selectedStationTwo = nil
+		if g.clicked {
+			switch {
+			case clickedStation == nil:
+				g.resetInput()
 
-		case g.selectedStationOne == nil:
-			// select the clicked village (or nil, if none was clicked)
-			g.selectedStationOne = clickedStation
+			case g.selectedStationOne == nil:
+				// select the clicked village (or nil, if none was clicked)
+				g.selectedStationOne = clickedStation
 
-		case g.selectedStationOne != nil && g.selectedStationOne.Village != clickedStation.Village:
-			// select the clicked village (or nil, if none was clicked)
-			g.selectedStationTwo = clickedStation
+			case g.selectedStationOne != nil && g.selectedStationOne.Village != clickedStation.Village:
+				// select the clicked village (or nil, if none was clicked)
+				g.selectedStationTwo = clickedStation
+
+				// show the buttons near the click location
+				buttonVec := TransformVec(g.toScreen, clickedStation.Position).Add(vecSplat(16))
+				g.btnAcceptConnection = NewButton("Accept", buttonVec)
+				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 32 + 8}))
+			}
 		}
 	}
 
@@ -235,6 +248,13 @@ func (g *Game) Input() {
 	}
 
 	g.hoveredStation = hoveredStation
+}
+
+func (g *Game) resetInput() {
+	g.selectedStationOne = nil
+	g.selectedStationTwo = nil
+	g.btnCancelConnection = nil
+	g.btnAcceptConnection = nil
 }
 
 func (g *Game) computeVillages(yield func(string)) VillageCalculation {
@@ -342,9 +362,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		}
 	}
 
-	// draw any objects
-	for _, object := range g.objects {
-		object.Draw(screen, g.toScreen)
+	// draw the buttons
+	for _, btn := range [2]*Button{g.btnAcceptConnection, g.btnCancelConnection} {
+		if btn != nil {
+			btn.Draw(screen)
+		}
 	}
 
 	// if we're busy, paint a busy indicator
@@ -395,4 +417,15 @@ func (g *Game) DrawDebugLines(screen *ebiten.Image) {
 		text.DrawWithOptions(screen, t, Font, &op)
 		op.GeoM.Translate(0, 16)
 	}
+}
+
+func (g *Game) buttons() []*Button {
+	buttons := [2]*Button{
+		g.btnAcceptConnection,
+		g.btnCancelConnection,
+	}
+
+	return slices.DeleteFunc(buttons[:], func(button *Button) bool {
+		return button == nil
+	})
 }
