@@ -198,7 +198,7 @@ func (g *Game) Input() {
 		g.resetInput()
 	}
 
-	var clickedStation, hoveredStation *Station
+	var currentStation *Station
 
 	if !inputIntercepted {
 		if result := g.villagesAsync.Get(); result != nil {
@@ -213,41 +213,44 @@ func (g *Game) Input() {
 			isNear := distanceToStation < 32.0
 
 			if isNear || station.Village.Contains(g.cursorWorld) {
-				hoveredStation = station
+				currentStation = station
 			}
+		}
 
-			if g.clicked && (isNear || station.Village.Contains(g.cursorWorld)) {
-				clickedStation = station
-			}
+		noStationSelected := currentStation == nil
+
+		// if the hovered station is already connected to the first station, we do not allow to hover or click it
+		if g.selectedStationOne != nil && g.stationGraph.Has(g.selectedStationOne, currentStation) {
+			currentStation = nil
 		}
 
 		if g.clicked {
 			switch {
-			case clickedStation == nil:
+			case noStationSelected:
 				g.resetInput()
 
 			case g.selectedStationOne == nil:
 				// select the clicked village (or nil, if none was clicked)
-				g.selectedStationOne = clickedStation
+				g.selectedStationOne = currentStation
 
-			case g.selectedStationOne != nil && g.selectedStationOne.Village != clickedStation.Village:
+			case g.selectedStationOne != nil && currentStation != nil:
 				// select the clicked village (or nil, if none was clicked)
-				g.selectedStationTwo = clickedStation
+				g.selectedStationTwo = currentStation
 
 				// show the buttons near the click location
-				buttonVec := TransformVec(g.toScreen, clickedStation.Position).Add(vecSplat(16))
+				buttonVec := TransformVec(g.toScreen, currentStation.Position).Add(vecSplat(16))
 				g.btnAcceptConnection = NewButton("Accept", buttonVec)
 				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 32 + 8}))
 			}
 		}
 	}
 
-	if hoveredStation == g.selectedStationOne || hoveredStation == g.selectedStationTwo {
-		// do not hover one of the selected villages
-		hoveredStation = nil
-	}
+	g.hoveredStation = currentStation
 
-	g.hoveredStation = hoveredStation
+	if currentStation == g.selectedStationOne || currentStation == g.selectedStationTwo {
+		// actually, do not hover one of the selected villages
+		g.hoveredStation = nil
+	}
 }
 
 func (g *Game) resetInput() {

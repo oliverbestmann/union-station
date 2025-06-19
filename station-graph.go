@@ -4,7 +4,15 @@ type StationGraph struct {
 	edges []*StationEdge
 }
 
-func (sg *StationGraph) Insert(one, two *Station) *StationEdge {
+func (sg *StationGraph) Insert(one, two *Station) (*StationEdge, bool) {
+	if one == nil || two == nil {
+		panic("stations must not be nil")
+	}
+
+	if existing := sg.Get(one, two); existing != nil {
+		return existing, false
+	}
+
 	edge := &StationEdge{
 		One: one,
 		Two: two,
@@ -12,11 +20,25 @@ func (sg *StationGraph) Insert(one, two *Station) *StationEdge {
 
 	sg.edges = append(sg.edges, edge)
 
-	return edge
+	return edge, true
 }
 
 func (sg *StationGraph) Edges() []*StationEdge {
 	return sg.edges
+}
+
+func (sg *StationGraph) Get(one, two *Station) *StationEdge {
+	for _, edge := range sg.edges {
+		if edge.One == one && edge.Two == two || edge.Two == one && edge.One == two {
+			return edge
+		}
+	}
+
+	return nil
+}
+
+func (sg *StationGraph) Has(one, two *Station) bool {
+	return sg.Get(one, two) != nil
 }
 
 func (sg *StationGraph) EdgesOf(station *Station) []*StationEdge {
