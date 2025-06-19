@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/oliverbestmann/union-station/assets"
 	"log"
 	"time"
 )
@@ -16,10 +17,36 @@ func main() {
 
 	screenWidth, screenHeight := 800, 480
 
-	game := &Game{
-		seed:         14,
-		screenWidth:  screenWidth * renderScale,
-		screenHeight: screenHeight * renderScale,
+	game := &Loader[Audio]{
+		// load audio task
+		Promise: AsyncTask(func(yield func(string)) Audio {
+			time.Sleep(100 * time.Millisecond)
+			var idle IdleSuspend
+
+			yield("music")
+			music := DecodeAudio(&idle, assets.Music())
+
+			yield("button-press")
+			buttonPress := DecodeAudio(&idle, assets.ButtonPress())
+
+			yield("button-hover")
+			buttonHover := DecodeAudio(&idle, assets.ButtonHover())
+
+			return Audio{
+				Music:       music,
+				ButtonPress: buttonPress,
+				ButtonHover: buttonHover,
+			}
+		}),
+
+		Next: func(audio Audio) ebiten.Game {
+			return &Game{
+				audio:        audio,
+				seed:         14,
+				screenWidth:  screenWidth * renderScale,
+				screenHeight: screenHeight * renderScale,
+			}
+		},
 	}
 
 	// Specify the window size as you like. Here, a doubled size is specified.

@@ -98,12 +98,16 @@ func (p Promise[T, P]) Get() *T {
 	return p.result.Load()
 }
 
-func (p Promise[T, P]) Progress() *P {
+func (p Promise[T, P]) Status() *P {
 	if p.progress == nil || p.Get() != nil {
 		return nil
 	}
 
 	return p.progress.Load()
+}
+
+func (p Promise[T, P]) Started() bool {
+	return p.started
 }
 
 func (p Promise[T, P]) Waiting() bool {

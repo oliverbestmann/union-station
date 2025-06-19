@@ -22,6 +22,8 @@ type VillageCalculation struct {
 
 // Game implements ebiten.Game interface.
 type Game struct {
+	initialized bool
+
 	screenWidth  int
 	screenHeight int
 	worldScale   float64
@@ -55,9 +57,11 @@ type Game struct {
 	seed uint64
 
 	btnAcceptConnection *Button
+	btnDesignConnection *Button
 	btnCancelConnection *Button
 
 	stationGraph StationGraph
+	audio        Audio
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -69,7 +73,9 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 
 func (g *Game) Reset(seed uint64) {
 	*g = Game{
+		initialized:  true,
 		seed:         seed,
+		audio:        g.audio,
 		screenWidth:  g.screenWidth,
 		screenHeight: g.screenHeight,
 		debug:        true,
@@ -101,9 +107,6 @@ func (g *Game) Reset(seed uint64) {
 	// discard streets outside of the visible world
 	g.gen = NewStreetGenerator(g.rng, g.worldSize)
 
-	// generate an image from noise
-	g.noise = noiseToImage(g.gen.Noise(), g.screenWidth, g.screenHeight, g.toWorld)
-
 	// create an empty image for the streets
 	g.streets = ebiten.NewImage(g.screenWidth, g.screenHeight)
 	g.streets.Fill(rgbaOf(0xdbcfb1ff))
@@ -122,8 +125,11 @@ func (g *Game) Reset(seed uint64) {
 
 func (g *Game) Update() error {
 	// initialize the game if needed
-	if g.noise == nil {
+	if !g.initialized {
 		g.Reset(g.seed)
+
+		// start music audio playback only the first time
+		g.audio.PlayMusic()
 	}
 
 	// step to the next seed
@@ -169,6 +175,11 @@ func (g *Game) Update() error {
 	// derive screen cursor position
 	g.cursorWorld = TransformVec(g.toWorld, g.cursorScreen)
 
+	// play sound if click was done
+	if g.clicked {
+		g.audio.Play(g.audio.ButtonPress)
+	}
+
 	// now process input
 	g.Input()
 
@@ -180,21 +191,31 @@ func (g *Game) Input() {
 		g.debug = !g.debug
 	}
 
+	if inpututil.IsKeyJustPressed(ebiten.KeyM) {
+		g.audio.ToggleMute()
+	}
+
 	var inputIntercepted bool
 
 	//goland:noinspection GoDfaConstantCondition
 	inputIntercepted = g.btnAcceptConnection.Hover(g.cursorScreen) || inputIntercepted
+	inputIntercepted = g.btnDesignConnection.Hover(g.cursorScreen) || inputIntercepted
 	inputIntercepted = g.btnCancelConnection.Hover(g.cursorScreen) || inputIntercepted
 
 	// check button inputs
-	if g.btnCancelConnection.IsClicked(g.cursorScreen, g.clicked) {
+	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
+		// accept the station
+		g.stationGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
+		g.resetInput()
+	}
+
+	if g.btnDesignConnection.IsClicked(g.cursorScreen, g.clicked) {
 		// hide all buttons
 		g.resetInput()
 	}
 
-	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
-		// accept the station
-		g.stationGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
+	if g.btnCancelConnection.IsClicked(g.cursorScreen, g.clicked) {
+		// hide all buttons
 		g.resetInput()
 	}
 
@@ -211,8 +232,9 @@ func (g *Game) Input() {
 			stationScreen := TransformVec(g.toScreen, station.Position)
 			distanceToStation := g.cursorScreen.DistanceTo(stationScreen)
 			isNear := distanceToStation < 32.0
+			isNotSelected := station != g.selectedStationOne && station != g.selectedStationTwo
 
-			if isNear || station.Village.Contains(g.cursorWorld) {
+			if isNotSelected && (isNear || station.Village.Contains(g.cursorWorld)) {
 				currentStation = station
 			}
 		}
@@ -233,14 +255,15 @@ func (g *Game) Input() {
 				// select the clicked village (or nil, if none was clicked)
 				g.selectedStationOne = currentStation
 
-			case g.selectedStationOne != nil && currentStation != nil:
+			case g.selectedStationOne != nil && currentStation != nil && currentStation != g.selectedStationOne:
 				// select the clicked village (or nil, if none was clicked)
 				g.selectedStationTwo = currentStation
 
 				// show the buttons near the click location
-				buttonVec := TransformVec(g.toScreen, currentStation.Position).Add(vecSplat(16))
-				g.btnAcceptConnection = NewButton("Accept", buttonVec)
-				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 32 + 8}))
+				buttonVec := g.cursorScreen.Add(vecSplat(-16))
+				g.btnAcceptConnection = NewButton("Build", buttonVec)
+				g.btnDesignConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}))
+				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}))
 			}
 		}
 	}
@@ -256,8 +279,9 @@ func (g *Game) Input() {
 func (g *Game) resetInput() {
 	g.selectedStationOne = nil
 	g.selectedStationTwo = nil
-	g.btnCancelConnection = nil
 	g.btnAcceptConnection = nil
+	g.btnDesignConnection = nil
+	g.btnCancelConnection = nil
 }
 
 func (g *Game) computeVillages(yield func(string)) VillageCalculation {
@@ -308,6 +332,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.DrawImage(g.streets, nil)
 
 	if ebiten.IsKeyPressed(ebiten.KeyN) {
+		if g.noise == nil {
+			// generate an image from noise
+			g.noise = noiseToImage(g.gen.Noise(), g.screenWidth, g.screenHeight, g.toWorld)
+		}
+
 		screen.DrawImage(g.noise, nil)
 	}
 
@@ -317,6 +346,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	g.btnAcceptConnection.Draw(screen)
+	g.btnDesignConnection.Draw(screen)
 	g.btnCancelConnection.Draw(screen)
 
 	// if we're busy, paint a busy indicator
@@ -431,7 +461,7 @@ func (g *Game) DrawDebugLines(screen *ebiten.Image) {
 		op.GeoM.Translate(0, 16)
 	}
 
-	if progress := g.villagesAsync.Progress(); progress != nil {
+	if progress := g.villagesAsync.Status(); progress != nil {
 		t = *progress + "..."
 		text.DrawWithOptions(screen, t, Font, &op)
 		op.GeoM.Translate(0, 16)
