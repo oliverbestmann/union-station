@@ -55,13 +55,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install libasound2-dev libgl1-mesa-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev libxxf86vm-dev
 
-      - name: Build
+      - name: Install wasm-opt
         run: |
-          env GOOS=js GOARCH=wasm go build -v ./...
+          wget https://github.com/WebAssembly/binaryen/releases/download/version_123/binaryen-version_123-x86_64-linux.tar.gz
+          tar xf binaryen-version_123-x86_64-linux.tar.gz
 
       - name: Build (wasm)
         run: |
           env GOOS=js GOARCH=wasm go build -o unionstation.wasm -v ./...
+
+      - name: Optimize wasm file
+        run: |
+          binaryen-version_123/bin/wasm-opt unionstation.wasm -o unionstation.wasm --enable-bulk-memory-opt -Oz --strip-debug
 
       - name: Bundle files
         run: |
