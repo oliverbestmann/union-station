@@ -26,6 +26,8 @@ type Game struct {
 	screenHeight int
 	worldScale   float64
 
+	debug bool
+
 	startTime               time.Time
 	streetGenerationEndTime time.Time
 
@@ -54,6 +56,9 @@ type Game struct {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	_ = outsideWidth
+	_ = outsideHeight
+
 	return g.screenWidth, g.screenHeight
 }
 
@@ -62,6 +67,7 @@ func (g *Game) Reset(seed uint64) {
 		seed:         seed,
 		screenWidth:  g.screenWidth,
 		screenHeight: g.screenHeight,
+		debug:        true,
 	}
 
 	g.startTime = time.Now()
@@ -166,6 +172,10 @@ func (g *Game) Update() error {
 
 func (g *Game) Input() {
 	var clickedStation, hoveredStation *Station
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		g.debug = !g.debug
+	}
 
 	if result := g.villagesAsync.Get(); result != nil {
 		// get the station that is nearest to the mouse
@@ -330,6 +340,12 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		text.DrawWithOptions(screen, "please wait...", Font, &op)
 	}
 
+	if g.debug {
+		g.DrawDebugLines(screen)
+	}
+}
+
+func (g *Game) DrawDebugLines(screen *ebiten.Image) {
 	var op ebiten.DrawImageOptions
 	op.GeoM.Translate(32, 32)
 	op.ColorScale.ScaleWithColor(DebugColor)
