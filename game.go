@@ -270,7 +270,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			cInner, cOuter := rgbaOf(0x839ca9ff), rgbaOf(0x6d838eff)
 
 			// if the circle is hovered, select a different color palette
-			if g.hoveredStation == station {
+			switch {
+			case g.selectedStationOne == station, g.selectedStationTwo == station:
+				cInner, cOuter = rgbaOf(0x8e6d89ff), rgbaOf(0x8e6d89ff)
+
+			case g.hoveredStation == station:
 				cInner, cOuter = rgbaOf(0xb089abff), rgbaOf(0x8e6d89ff)
 			}
 
