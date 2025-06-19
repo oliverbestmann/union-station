@@ -12,16 +12,18 @@ func main() {
 	// defer ProfileCPU()()
 
 	const windowScale = 2
-	screenWidth, screenHeight := 800*windowScale, 480*windowScale
+	const renderScale = 2
+
+	screenWidth, screenHeight := 800, 480
 
 	game := &Game{
 		seed:         14,
-		screenWidth:  screenWidth,
-		screenHeight: screenHeight,
+		screenWidth:  screenWidth * renderScale,
+		screenHeight: screenHeight * renderScale,
 	}
 
 	// Specify the window size as you like. Here, a doubled size is specified.
-	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowSize(screenWidth*windowScale, screenHeight*windowScale)
 	ebiten.SetWindowTitle("Union Station")
 	ebiten.SetVsyncEnabled(true)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
