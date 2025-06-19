@@ -53,6 +53,8 @@ type Game struct {
 	rng  *rand.Rand
 	gen  StreetGenerator
 	seed uint64
+
+	objects []Drawable
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -148,7 +150,7 @@ func (g *Game) Update() error {
 		g.streetGenerationEndTime = time.Now()
 
 		// asynchronously calculate the villages
-		g.villagesAsync = AsyncTask(g.prepareVillages)
+		g.villagesAsync = AsyncTask(g.computeVillages)
 	}
 
 	if res := g.villagesAsync.Get(); res != nil {
@@ -197,6 +199,19 @@ func (g *Game) Input() {
 		}
 	}
 
+	// handle object input
+	for _, object := range slices.Clone(g.objects) {
+		if object, ok := object.(Clickable); ok {
+			if object.Click(g.toScreen, g.cursorScreen) {
+				// also prevent any clicks to the stations
+				clickedStation = nil
+
+				// stop click propagation
+				break
+			}
+		}
+	}
+
 	if g.clicked {
 		switch {
 		case clickedStation == nil:
@@ -222,7 +237,7 @@ func (g *Game) Input() {
 	g.hoveredStation = hoveredStation
 }
 
-func (g *Game) prepareVillages(yield func(string)) VillageCalculation {
+func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 	yield("Drawing streets")
 
 	image := ebiten.NewImage(g.screenWidth, g.screenHeight)
@@ -325,6 +340,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			// we have two selected villages, draw a dummy connection between them
 			DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo)
 		}
+	}
+
+	// draw any objects
+	for _, object := range g.objects {
+		object.Draw(screen, g.toScreen)
 	}
 
 	// if we're busy, paint a busy indicator
