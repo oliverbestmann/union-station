@@ -5,7 +5,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
-func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two *Station) {
+func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two *Station, stationColor StationColor) {
 	// work in screen space
 	start := TransformVec(toScreen, one.Position).AsVec32()
 	end := TransformVec(toScreen, two.Position).AsVec32()
@@ -26,7 +26,7 @@ func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two 
 		path.LineTo(b.X, b.Y)
 	}
 
-	StrokePath(target, path, ebiten.GeoM{}, rgbaOf(0x8e6d89ff), &vector.StrokeOptions{
+	StrokePath(target, path, ebiten.GeoM{}, stationColor.Stroke, &vector.StrokeOptions{
 		Width: 4.0,
 	})
 }

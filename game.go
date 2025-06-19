@@ -56,6 +56,8 @@ type Game struct {
 
 	btnAcceptConnection *Button
 	btnCancelConnection *Button
+
+	stationGraph StationGraph
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -180,12 +182,9 @@ func (g *Game) Input() {
 
 	var inputIntercepted bool
 
-	for _, button := range g.buttons() {
-		if button.Hover(g.cursorScreen) {
-			// button intercepts all input
-			inputIntercepted = true
-		}
-	}
+	//goland:noinspection GoDfaConstantCondition
+	inputIntercepted = g.btnAcceptConnection.Hover(g.cursorScreen) || inputIntercepted
+	inputIntercepted = g.btnCancelConnection.Hover(g.cursorScreen) || inputIntercepted
 
 	// check button inputs
 	if g.btnCancelConnection.IsClicked(g.cursorScreen, g.clicked) {
@@ -194,8 +193,9 @@ func (g *Game) Input() {
 	}
 
 	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
-		// TODO
-		fmt.Println("Accept clicked")
+		// accept the station
+		g.stationGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
+		g.resetInput()
 	}
 
 	var clickedStation, hoveredStation *Station
@@ -310,64 +310,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// check if any village should be highlighted
 	if result := g.villagesAsync.Get(); result != nil {
-		// paint the stations
-		for _, station := range result.Stations {
-			loc := TransformVec(g.toScreen, station.Position).AsVec32()
-
-			cInner, cOuter := rgbaOf(0x839ca9ff), rgbaOf(0x6d838eff)
-
-			// if the circle is hovered, select a different color palette
-			switch {
-			case g.selectedStationOne == station, g.selectedStationTwo == station:
-				cInner, cOuter = rgbaOf(0x8e6d89ff), rgbaOf(0x8e6d89ff)
-
-			case g.hoveredStation == station:
-				cInner, cOuter = rgbaOf(0xb089abff), rgbaOf(0x8e6d89ff)
-			}
-
-			vector.DrawFilledCircle(screen, loc.X, loc.Y, 10, cOuter, true)
-			vector.DrawFilledCircle(screen, loc.X, loc.Y, 8, cInner, true)
-		}
-
-		if station := g.hoveredStation; station != nil {
-			DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
-				ToScreen:  g.toScreen,
-				FillColor: rgbaOf(0x83838320),
-			})
-
-			DrawVillageTooltip(screen, g.cursorScreen.Add(Vec{X: 16, Y: 16}), station.Village)
-		}
-
-		if station := g.selectedStationOne; station != nil {
-			DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
-				ToScreen:    g.toScreen,
-				FillColor:   rgbaOf(0xb089ab50),
-				StrokeColor: rgbaOf(0xb089abff),
-				StrokeWidth: 2,
-			})
-		}
-
-		if station := g.selectedStationTwo; station != nil {
-			DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
-				ToScreen:    g.toScreen,
-				FillColor:   rgbaOf(0xb089ab50),
-				StrokeColor: rgbaOf(0xb089abff),
-				StrokeWidth: 2,
-			})
-		}
-
-		if g.selectedStationOne != nil && g.selectedStationTwo != nil {
-			// we have two selected villages, draw a dummy connection between them
-			DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo)
-		}
+		g.drawVillageCalculation(screen, result)
 	}
 
-	// draw the buttons
-	for _, btn := range [2]*Button{g.btnAcceptConnection, g.btnCancelConnection} {
-		if btn != nil {
-			btn.Draw(screen)
-		}
-	}
+	g.btnAcceptConnection.Draw(screen)
+	g.btnCancelConnection.Draw(screen)
 
 	// if we're busy, paint a busy indicator
 	if g.villagesAsync.Waiting() {
@@ -385,6 +332,75 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if g.debug {
 		g.DrawDebugLines(screen)
 	}
+}
+
+func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {
+	// walk through the edges we've added and paint them
+	for _, edge := range g.stationGraph.Edges() {
+		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, StationColorConstructed)
+	}
+
+	// paint the edges of the currently planed route
+	if g.selectedStationOne != nil && g.selectedStationTwo != nil {
+		// we have two selected villages, draw a dummy connection between them
+		DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo, StationColorSelected)
+	}
+
+	// paint the stations
+	for _, station := range result.Stations {
+		loc := TransformVec(g.toScreen, station.Position).AsVec32()
+
+		stationColor := g.stationColorOf(station)
+
+		vector.DrawFilledCircle(screen, loc.X, loc.Y, 10, stationColor.Stroke, true)
+		vector.DrawFilledCircle(screen, loc.X, loc.Y, 8, stationColor.Fill, true)
+	}
+
+	if station := g.hoveredStation; station != nil {
+		DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
+			ToScreen:  g.toScreen,
+			FillColor: rgbaOf(0x83838320),
+		})
+
+		DrawVillageTooltip(screen, g.cursorScreen.Add(Vec{X: 16, Y: 16}), station.Village)
+	}
+
+	if station := g.selectedStationOne; station != nil {
+		DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
+			ToScreen:    g.toScreen,
+			FillColor:   rgbaOf(0xb089ab50),
+			StrokeColor: rgbaOf(0xb089abff),
+			StrokeWidth: 2,
+		})
+	}
+
+	if station := g.selectedStationTwo; station != nil {
+		DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
+			ToScreen:    g.toScreen,
+			FillColor:   rgbaOf(0xb089ab50),
+			StrokeColor: rgbaOf(0xb089abff),
+			StrokeWidth: 2,
+		})
+	}
+
+}
+
+func (g *Game) stationColorOf(station *Station) StationColor {
+	stationColor := StationColorIdle
+
+	// if the circle is hovered, select a different color palette
+	switch {
+	case g.selectedStationOne == station, g.selectedStationTwo == station:
+		stationColor = StationColorSelected
+
+	case g.hoveredStation == station:
+		stationColor = StationColorHover
+
+	case len(g.stationGraph.EdgesOf(station)) > 0:
+		stationColor = StationColorConstructed
+	}
+
+	return stationColor
 }
 
 func (g *Game) DrawDebugLines(screen *ebiten.Image) {
