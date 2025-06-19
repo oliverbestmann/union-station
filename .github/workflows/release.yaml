@@ -62,7 +62,7 @@ jobs:
 
       - name: Build (wasm)
         run: |
-          env GOOS=js GOARCH=wasm go build -o unionstation.wasm -v ./...
+          env GOOS=js GOARCH=wasm go build -o unionstation.wasm -v .
 
       - name: Optimize wasm file
         run: |
