@@ -71,6 +71,7 @@ func FillPath(target *ebiten.Image, path vector.Path, tr ebiten.GeoM, color colo
 type Promise[T any, P any] struct {
 	result   *atomic.Pointer[T]
 	progress *atomic.Pointer[P]
+	seen     *atomic.Bool
 	started  bool
 }
 
@@ -87,7 +88,7 @@ func AsyncTask[T any, P any](task func(yield func(P)) T) Promise[T, P] {
 		ptr.Store(&result)
 	}()
 
-	return Promise[T, P]{started: true, result: ptr, progress: progress}
+	return Promise[T, P]{started: true, result: ptr, progress: progress, seen: &atomic.Bool{}}
 }
 
 func (p Promise[T, P]) Get() *T {
@@ -96,6 +97,19 @@ func (p Promise[T, P]) Get() *T {
 	}
 
 	return p.result.Load()
+}
+
+func (p Promise[T, P]) GetOnce() *T {
+	if p.result == nil || p.seen.Load() {
+		return nil
+	}
+
+	value := p.result.Load()
+	if !p.seen.CompareAndSwap(false, true) {
+		return nil
+	}
+
+	return value
 }
 
 func (p Promise[T, P]) Status() *P {
@@ -179,4 +193,12 @@ func imageSizeOf(image *ebiten.Image) Vec {
 		X: float64(image.Bounds().Dx()),
 		Y: float64(image.Bounds().Dy()),
 	}
+}
+
+func imageHeight(img *ebiten.Image) int {
+	return img.Bounds().Dx()
+}
+
+func imageWidth(img *ebiten.Image) int {
+	return img.Bounds().Dy()
 }

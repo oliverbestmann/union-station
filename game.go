@@ -18,6 +18,7 @@ type VillageCalculation struct {
 	Image    *ebiten.Image
 	Villages []*Village
 	Stations []*Station
+	Render   RenderSegments
 }
 
 // Game implements ebiten.Game interface.
@@ -26,7 +27,13 @@ type Game struct {
 
 	screenWidth  int
 	screenHeight int
-	worldScale   float64
+	sizeChanged  bool
+
+	toScreen ebiten.GeoM
+	toWorld  ebiten.GeoM
+
+	worldScale float64
+	worldSize  Rect
 
 	debug bool
 
@@ -36,18 +43,15 @@ type Game struct {
 
 	streetGenerationEndTime time.Time
 
-	worldSize Rect
-
 	noise         *ebiten.Image
-	streets       *ebiten.Image
 	villagesAsync Promise[VillageCalculation, string]
+
+	render  RenderSegments
+	streets *ebiten.Image
 
 	hoveredStation     *Station
 	selectedStationOne *Station
 	selectedStationTwo *Station
-
-	toScreen ebiten.GeoM
-	toWorld  ebiten.GeoM
 
 	clicked      bool
 	cursorWorld  Vec
@@ -68,10 +72,19 @@ type Game struct {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	_ = outsideWidth
 	_ = outsideHeight
 
-	return g.screenWidth, g.screenHeight
+	// always keep aspect ratio
+	height := 480 * outsideWidth / 800
+
+	if g.screenWidth != outsideWidth || g.screenHeight != height {
+		g.screenWidth = outsideWidth
+		g.screenHeight = height
+
+		g.updateTransform()
+	}
+
+	return outsideWidth, height
 }
 
 func (g *Game) Reset(seed uint64) {
@@ -87,18 +100,7 @@ func (g *Game) Reset(seed uint64) {
 	g.startTime = time.Now()
 	g.now = time.Now()
 
-	// base size, used for scaling
-	worldWidth := 32000.0
-
-	scale := float64(g.screenWidth) / worldWidth
-
-	g.worldScale = scale
-	g.toScreen.Scale(scale, scale)
-
-	// create an inverse of the transform to transform from screen coordinates
-	// to world coordinates
-	g.toWorld = g.toScreen
-	g.toWorld.Invert()
+	g.updateTransform()
 
 	// calculate world size based on transformed screen size
 	x0, y0 := g.toWorld.Apply(0, 0)
@@ -109,10 +111,6 @@ func (g *Game) Reset(seed uint64) {
 
 	// discard streets outside of the visible world
 	g.gen = NewStreetGenerator(g.rng, g.worldSize)
-
-	// create an empty image for the streets
-	g.streets = ebiten.NewImage(g.screenWidth, g.screenHeight)
-	g.streets.Fill(BackgroundColor)
 
 	// enqueue a starting point for the street generator
 	g.gen.Push(PendingSegment{
@@ -153,7 +151,7 @@ func (g *Game) Update() error {
 	for g.gen.More() && time.Since(now) < 12*time.Millisecond {
 		if segment := g.gen.Next(); segment != nil {
 			// draw the segment to the street image
-			segment.Draw(g.streets, g.toScreen)
+			g.render.Add(segment, g.toWorld)
 			newSegmentCount += 1
 		}
 	}
@@ -166,9 +164,13 @@ func (g *Game) Update() error {
 		g.villagesAsync = AsyncTask(g.computeVillages)
 	}
 
-	if res := g.villagesAsync.Get(); res != nil {
+	if res := g.villagesAsync.GetOnce(); res != nil {
+		// keep updated values
+		g.render = res.Render
 		g.streets = res.Image
 	}
+
+	g.updateStreetsImage()
 
 	// get click information
 	g.cursorScreen, g.clicked = Clicked()
@@ -188,6 +190,35 @@ func (g *Game) Update() error {
 	g.Input()
 
 	return nil
+}
+
+func (g *Game) updateStreetsImage() {
+	//  need to re-render the image if it does not exist or if the size has changed
+	imageSizeChanged := g.streets != nil && (imageHeight(g.streets) != g.screenWidth || imageWidth(g.streets) != g.screenHeight)
+
+	// re-render al streets if needed
+	if g.streets == nil || imageSizeChanged || g.render.Dirty {
+		if g.streets == nil || imageSizeChanged {
+			// we have no image or need to recreate it
+			g.streets = ebiten.NewImage(g.screenWidth, g.screenHeight)
+		}
+
+		// clear the image
+		g.streets.Fill(BackgroundColor)
+
+		// if size has changed, we need to reproject the streets from world space to screen space
+		if imageSizeChanged {
+			var render RenderSegments
+			for _, segment := range g.gen.Segments() {
+				render.Add(segment, g.toWorld)
+			}
+
+			g.render = render
+		}
+
+		// now draw the streets to the image
+		g.render.Draw(g.streets, g.toScreen)
+	}
 }
 
 func (g *Game) Input() {
@@ -295,22 +326,16 @@ func (g *Game) resetInput() {
 }
 
 func (g *Game) computeVillages(yield func(string)) VillageCalculation {
-	yield("Drawing streets")
+	yield("Vectorize streets")
+	var render RenderSegments
+	for _, segment := range g.gen.Segments() {
+		render.Add(segment, g.toWorld)
+	}
 
+	yield("Render all streets to a new image")
 	image := ebiten.NewImage(g.screenWidth, g.screenHeight)
 	image.Fill(BackgroundColor)
-
-	var idle IdleSuspend
-
-	// paint the streets again
-	for idx, segment := range g.gen.segments {
-		segment.Draw(image, g.toScreen)
-
-		if idx%1_000 == 0 {
-			// suspend on wasm if needed
-			idle.MaybeSuspend()
-		}
-	}
+	render.Draw(image, g.toScreen)
 
 	// find villages
 	yield("Collecting villages")
@@ -330,9 +355,10 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 
 	return VillageCalculation{
 		EndTime:  time.Now(),
-		Image:    image,
 		Villages: villages,
 		Stations: stations,
+		Image:    image,
+		Render:   render,
 	}
 }
 
@@ -487,13 +513,18 @@ func (g *Game) DrawDebugText(screen *ebiten.Image) {
 	}
 }
 
-func (g *Game) buttons() []*Button {
-	buttons := [2]*Button{
-		g.btnAcceptConnection,
-		g.btnCancelConnection,
-	}
+func (g *Game) updateTransform() {
+	// base size, used for scaling
+	worldWidth := 32000.0
 
-	return slices.DeleteFunc(buttons[:], func(button *Button) bool {
-		return button == nil
-	})
+	scale := float64(g.screenWidth) / worldWidth
+	g.worldScale = scale
+
+	g.toScreen = ebiten.GeoM{}
+	g.toScreen.Scale(scale, scale)
+
+	// create an inverse of the transform to transform from screen coordinates
+	// to world coordinates
+	g.toWorld = g.toScreen
+	g.toWorld.Invert()
 }

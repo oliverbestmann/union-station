@@ -13,6 +13,8 @@ type Loader[T any] struct {
 	playing     bool
 	initialized bool
 	game        ebiten.Game
+
+	screenWidth, screenHeight int
 }
 
 func (l *Loader[T]) Update() error {
@@ -33,6 +35,8 @@ func (l *Loader[T]) Update() error {
 	default:
 		if result := l.Promise.Get(); result != nil {
 			l.game = l.Next(*result)
+			l.game.Layout(l.screenWidth, l.screenHeight)
+
 			l.loaded = true
 		}
 	}
@@ -71,6 +75,9 @@ func (l *Loader[T]) drawText(screen *ebiten.Image, t string) {
 }
 
 func (l *Loader[T]) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	l.screenWidth = outsideWidth
+	l.screenHeight = outsideHeight
+
 	if l.playing {
 		return l.game.Layout(outsideWidth, outsideHeight)
 	}

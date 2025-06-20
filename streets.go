@@ -516,3 +516,84 @@ func (g *Grid) Candidates(query *Segment, bbox Rect) iter.Seq[*Segment] {
 
 	}
 }
+
+type RenderSegments struct {
+	VerticesChunks [][]ebiten.Vertex
+	IndicesChunks  [][]uint16
+
+	Dirty        bool
+	tempVertices []ebiten.Vertex
+}
+
+func (r *RenderSegments) Add(s *Segment, toWorld ebiten.GeoM) {
+	r.Dirty = true
+
+	dir := s.End.Sub(s.Start).Normalized()
+
+	start := s.Start.Sub(dir.Mulf(4.0)).AsVec32()
+	end := s.End.Add(dir.Mulf(4.0)).AsVec32()
+
+	strokeWidth := 2.0
+	strokeColor := rgbaOf(0x978c63ff)
+	if s.Type == StreetTypeLocal {
+		strokeWidth = 1.0
+		strokeColor = rgbaOf(0xb9ab73ff)
+	}
+
+	chunksCount := len(r.VerticesChunks)
+	if chunksCount == 0 || len(r.VerticesChunks[chunksCount-1]) > math.MaxUint16-128 {
+		r.VerticesChunks = append(r.VerticesChunks, nil)
+		r.IndicesChunks = append(r.IndicesChunks, nil)
+	}
+
+	chunkIdx := len(r.VerticesChunks) - 1
+
+	// find a chunk that we'll write the segments to
+	vertices := &r.VerticesChunks[chunkIdx]
+	indices := &r.IndicesChunks[chunkIdx]
+
+	// get the index where we place the new vertices
+	vertexStart := len(*vertices)
+
+	// create a path
+	var path vector.Path
+	path.MoveTo(start.X, start.Y)
+	path.LineTo(end.X, end.Y)
+
+	// append vertices from path to chunks
+	strokeOp := &vector.StrokeOptions{}
+	strokeOp.Width = float32(TransformScalar(toWorld, strokeWidth))
+	*vertices, *indices = path.AppendVerticesAndIndicesForStroke(*vertices, *indices, strokeOp)
+
+	for v := vertexStart; v < len(*vertices); v++ {
+		(*vertices)[v].ColorR = float32(strokeColor.R) / 255
+		(*vertices)[v].ColorG = float32(strokeColor.G) / 255
+		(*vertices)[v].ColorB = float32(strokeColor.B) / 255
+		(*vertices)[v].ColorA = float32(strokeColor.A) / 255
+	}
+}
+
+func (r *RenderSegments) Draw(screen *ebiten.Image, toScreen ebiten.GeoM) {
+	r.Dirty = false
+
+	for chunk := range r.VerticesChunks {
+		vertices := r.VerticesChunks[chunk]
+		indices := r.IndicesChunks[chunk]
+
+		// transform vertices to screen
+		trVertices := r.tempVertices[:0]
+		for _, vertex := range vertices {
+			x, y := toScreen.Apply(float64(vertex.DstX), float64(vertex.DstY))
+			vertex.DstX, vertex.DstY = float32(x), float32(y)
+			trVertices = append(trVertices, vertex)
+		}
+
+		// render vertices
+		op := &ebiten.DrawTrianglesOptions{}
+		op.AntiAlias = true
+		screen.DrawTriangles(trVertices, indices, whiteImage, op)
+
+		// keep the slice to re-use
+		r.tempVertices = trVertices[:0]
+	}
+}
