@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"math"
@@ -361,7 +362,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 		Mst:      mst,
 		Stats: Stats{
 			// calculate the amount of money the player should have available
-			CoinsTotal: Coins(math.Ceil(float64(mst.TotalPrice())*1.1/10) * 10),
+			CoinsTotal: Coins(math.Ceil(float64(mst.TotalPrice())*1.05/10) * 10),
 		},
 	}
 }
@@ -391,12 +392,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.btnPlanningConnection.Draw(screen)
 	g.btnCancelConnection.Draw(screen)
 
-	// if we're busy, paint a busy indicator
-	if g.villagesAsync.Waiting() {
-		center := imageSizeOf(screen).Mulf(0.5)
-		DrawTextCenter(screen, "please wait...", Font16, center, rgbaOf(0xa05e5eff))
-	}
-
 	if g.debug {
 		g.DrawDebugText(screen)
 	}
@@ -411,8 +406,17 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	op.GeoM.Scale(screenSize.X, 64)
 	screen.DrawImage(whiteImage, op)
 
-	text := fmt.Sprintf("%s remaining, %s scheduled", g.stats.CoinsAvailable(), g.stats.CoinsPlanned)
-	DrawTextRight(screen, text, Font24, pos, HudTextColor)
+	if g.stats.CoinsTotal > 0 {
+		msg := fmt.Sprintf("%s remaining, %s scheduled", g.stats.CoinsAvailable(), g.stats.CoinsPlanned)
+		DrawTextRight(screen, msg, Font24, pos, HudTextColor)
+	}
+
+	// if we're busy, paint a busy indicator
+	if g.villagesAsync.Waiting() {
+		center := imageSizeOf(screen).Mulf(0.5)
+		pos := Vec{X: center.X, Y: pos.Y}
+		DrawText(screen, "please wait...", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
+	}
 }
 
 func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {

@@ -213,29 +213,23 @@ func imageWidth(img *ebiten.Image) int {
 	return img.Bounds().Dx()
 }
 
-func DrawTextCenter(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
+func DrawText(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color, primaryAlign, secondaryAlign text.Align) {
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(pos.X, pos.Y)
-	op.PrimaryAlign = text.AlignCenter
-	op.SecondaryAlign = text.AlignCenter
+	op.PrimaryAlign = primaryAlign
+	op.SecondaryAlign = secondaryAlign
 	op.ColorScale.ScaleWithColor(color)
 	text.Draw(target, msg, face, op)
+}
+
+func DrawTextCenter(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
+	DrawText(target, msg, face, pos, color, text.AlignCenter, text.AlignCenter)
 }
 
 func DrawTextLeft(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
-	op := &text.DrawOptions{}
-	op.GeoM.Translate(pos.X, pos.Y)
-	op.PrimaryAlign = text.AlignStart
-	op.SecondaryAlign = text.AlignStart
-	op.ColorScale.ScaleWithColor(color)
-	text.Draw(target, msg, face, op)
+	DrawText(target, msg, face, pos, color, text.AlignStart, text.AlignStart)
 }
 
 func DrawTextRight(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
-	op := &text.DrawOptions{}
-	op.GeoM.Translate(pos.X, pos.Y)
-	op.PrimaryAlign = text.AlignEnd
-	op.SecondaryAlign = text.AlignStart
-	op.ColorScale.ScaleWithColor(color)
-	text.Draw(target, msg, face, op)
+	DrawText(target, msg, face, pos, color, text.AlignEnd, text.AlignStart)
 }

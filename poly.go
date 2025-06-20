@@ -19,7 +19,7 @@ func ConvexHull(points []Vec) []Vec {
 	}
 
 	// Sort points lexicographically (by X, then Y)
-	sort.Slice(points, func(i, j int) bool {
+	sort.SliceStable(points, func(i, j int) bool {
 		if points[i].X == points[j].X {
 			return points[i].Y < points[j].Y
 		}

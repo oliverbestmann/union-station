@@ -7,8 +7,10 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"image/color"
+	"maps"
 	"math"
 	"math/rand/v2"
+	"slices"
 )
 
 type Village struct {
@@ -39,20 +41,38 @@ func (v *Village) Contains(pos Vec) bool {
 }
 
 type GridIndex struct {
-	grid      Grid
-	Remaining Set[*Segment]
+	grid             Grid
+	Remaining        Set[*Segment]
+	remainingOrdered []*Segment
 }
 
 func NewGridIndex(grid Grid) GridIndex {
 	pg := GridIndex{grid: grid}
 
-	for _, cell := range grid.cells {
+	// need to walk the grid in deterministic order
+	keysSorted := slices.SortedFunc(maps.Keys(grid.cells), func(a, b cellId) int {
+		if a.X != b.X {
+			// compare by x
+			return int(a.X) - int(b.X)
+		} else {
+			// if equal, compare by y
+			return int(a.Y) - int(b.Y)
+		}
+	})
+
+	for _, key := range keysSorted {
+		cell := grid.cells[key]
+
 		for _, segment := range cell.Segments {
 			if segment.Type != StreetTypeLocal {
 				continue
 			}
 
 			pg.Remaining.Insert(segment)
+
+			// need to keep deterministic order of segments for
+			// query purposes too
+			pg.remainingOrdered = append(pg.remainingOrdered, segment)
 		}
 	}
 
@@ -60,8 +80,15 @@ func NewGridIndex(grid Grid) GridIndex {
 }
 
 func (idx *GridIndex) PopOne() *Segment {
-	segment, _ := idx.Remaining.PopOne()
-	return segment
+	for i, value := range idx.remainingOrdered {
+		if idx.Remaining.Has(value) {
+			idx.Remaining.Remove(value)
+			idx.remainingOrdered = idx.remainingOrdered[i+1:]
+			return value
+		}
+	}
+
+	return nil
 }
 
 func (idx *GridIndex) Extract(query *Segment, distThreshold float64) []*Segment {
