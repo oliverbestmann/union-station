@@ -21,6 +21,7 @@ type VillageCalculation struct {
 	Render   RenderSegments
 	Mst      StationGraph
 	Stats    Stats
+	RNGCheck int
 }
 
 // Game implements ebiten.Game interface.
@@ -364,6 +365,8 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 			// calculate the amount of money the player should have available
 			CoinsTotal: Coins(math.Ceil(float64(mst.TotalPrice())*1.05/10) * 10),
 		},
+
+		RNGCheck: g.rng.Int(),
 	}
 }
 
@@ -521,6 +524,11 @@ func (g *Game) DrawDebugText(screen *ebiten.Image) {
 	if result := g.villagesAsync.Get(); result != nil {
 		pos.Y += 24
 		t = fmt.Sprintf("City generation took %s", result.EndTime.Sub(g.startTime))
+		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
+
+		pos.Y += 24
+		checkValue := fmt.Sprintf("%x", result.RNGCheck)
+		t = fmt.Sprintf("Random check value: %s", checkValue[:6])
 		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
 	}
 
