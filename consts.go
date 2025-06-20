@@ -33,3 +33,21 @@ var StationColorConstructed = StationColor{
 }
 
 var BackgroundColor = rgbaOf(0xdbcfb1ff)
+var DebugTextColor = rgbaOf(0xff00ffff)
+var HudTextColor = rgbaOf(0xa05e5eff)
+
+var BuildButtonColors = ButtonColors{
+	Normal:   rgbaOf(0x6f8b6eff),
+	Hover:    rgbaOf(0x87a985ff),
+	Disabled: rgbaOf(0xa05e5eff),
+}
+
+var PlanButtonColors = ButtonColors{
+	Normal: StationColorPlanned.Stroke,
+	Hover:  StationColorPlanned.Fill,
+}
+
+var CancelButtonColors = ButtonColors{
+	Normal: rgbaOf(0x838383ff),
+	Hover:  rgbaOf(0xa0a0a0ff),
+}

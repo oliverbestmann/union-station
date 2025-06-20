@@ -4,13 +4,10 @@ import (
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
-	"math"
 	"math/rand/v2"
 	"slices"
-	"strconv"
 	"time"
 )
 
@@ -296,10 +293,11 @@ func (g *Game) Input() {
 
 				// show the buttons near the click location
 				buttonVec := g.cursorScreen.Add(vecSplat(-16))
-				g.btnAcceptConnection = NewButton(acceptText, buttonVec)
-				g.btnPlanningConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}))
-				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}))
+				g.btnAcceptConnection = NewButton(acceptText, buttonVec, BuildButtonColors)
+				g.btnPlanningConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}), PlanButtonColors)
+				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}), CancelButtonColors)
 
+				// disable button if we do not have enough money
 				g.btnAcceptConnection.Disabled = g.stats.CoinsAvailable() < price
 			}
 		}
@@ -335,7 +333,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 
 	// find villages
 	yield("Collecting villages")
-	villages := CollectVillages(g.rng, g.gen.grid, g.gen.Segments())
+	villages := CollectVillages(g.rng, g.gen.grid)
 
 	yield("Calculate clip rectangle")
 
@@ -393,15 +391,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	// if we're busy, paint a busy indicator
 	if g.villagesAsync.Waiting() {
-		offsetY := 4 * math.Sin(time.Since(TimeOrigin).Seconds()*5)
-		bounds := MeasureText(Font, "please wait...")
-
-		var op ebiten.DrawImageOptions
-		op.GeoM.Translate(-0.5*bounds.X, -0.5*bounds.Y)
-		op.GeoM.Scale(3.0, 3.0)
-		op.GeoM.Translate(float64(g.screenWidth)/2, float64(g.screenHeight)/2+offsetY)
-		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
-		text.DrawWithOptions(screen, "please wait...", Font, &op)
+		center := imageSizeOf(screen).Mulf(0.5)
+		DrawTextCenter(screen, "please wait...", Font16, center, rgbaOf(0xa05e5eff))
 	}
 
 	if g.debug {
@@ -410,17 +401,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	// draw the hud
-	top := ebiten.DrawImageOptions{}
-	top.GeoM.Scale(2, 2)
-	top.GeoM.Translate(float64(imageWidth(screen)-96), 32)
-	text.DrawWithOptions(screen, strconv.Itoa(int(g.stats.CoinsAvailable())), Font, &top)
+	pos := Vec{X: float64(imageWidth(screen) - 32), Y: 16}
+	screenSize := imageSizeOf(screen)
 
-	top.GeoM.Translate(0, 32)
-	text.DrawWithOptions(screen, strconv.Itoa(int(g.stats.CoinsAvailable()-g.stats.CoinsPlanned)), Font, &top)
+	op := &ebiten.DrawImageOptions{}
+	op.ColorScale.ScaleWithColor(rgbaOf(0xffffff40))
+	op.GeoM.Scale(screenSize.X, 64)
+	screen.DrawImage(whiteImage, op)
 
-	top.GeoM.Translate(0, 32)
-	text.DrawWithOptions(screen, strconv.Itoa(int(g.stats.CoinsPlanned)), Font, &top)
+	text := fmt.Sprintf("%s remaining, %s scheduled", g.stats.CoinsAvailable(), g.stats.CoinsPlanned)
+	DrawTextRight(screen, text, Font24, pos, HudTextColor)
 }
 
 func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {
@@ -508,34 +498,30 @@ func (g *Game) stationColorOf(station *Station) StationColor {
 }
 
 func (g *Game) DrawDebugText(screen *ebiten.Image) {
-	var op ebiten.DrawImageOptions
-	op.GeoM.Translate(32, 32)
-	op.ColorScale.ScaleWithColor(DebugColor)
-
+	pos := vecSplat(32)
 	t := fmt.Sprintf("%1.1f fps, seed %d", ebiten.ActualFPS(), g.seed)
-	text.DrawWithOptions(screen, t, Font, &op)
-	op.GeoM.Translate(0, 16)
+	DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
 
+	pos.Y += 24
 	t = fmt.Sprintf("Street Segments: %d", len(g.gen.segments))
-	text.DrawWithOptions(screen, t, Font, &op)
-	op.GeoM.Translate(0, 16)
+	DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
 
 	if !g.streetGenerationEndTime.IsZero() {
+		pos.Y += 24
 		t = fmt.Sprintf("Street generation took %s", g.streetGenerationEndTime.Sub(g.startTime))
-		text.DrawWithOptions(screen, t, Font, &op)
-		op.GeoM.Translate(0, 16)
+		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
 	}
 
 	if result := g.villagesAsync.Get(); result != nil {
+		pos.Y += 24
 		t = fmt.Sprintf("City generation took %s", result.EndTime.Sub(g.startTime))
-		text.DrawWithOptions(screen, t, Font, &op)
-		op.GeoM.Translate(0, 16)
+		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
 	}
 
 	if progress := g.villagesAsync.Status(); progress != nil {
+		pos.Y += 24
 		t = *progress + "..."
-		text.DrawWithOptions(screen, t, Font, &op)
-		op.GeoM.Translate(0, 16)
+		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
 	}
 }
 

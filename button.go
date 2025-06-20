@@ -2,28 +2,35 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	etext "github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
+	"image/color"
 )
+
+type ButtonColors struct {
+	Normal   color.Color
+	Hover    color.Color
+	Disabled color.Color
+}
 
 type Button struct {
 	Disabled bool
-	text     string
-	rect     Rect
+	Colors   ButtonColors
+	Text     string
+	Rect     Rect
 	hover    bool
-	clicked  bool
 }
 
-func NewButton(text string, loc Vec) *Button {
+func NewButton(text string, loc Vec, colors ButtonColors) *Button {
 	rect := Rect{
 		Min: loc,
-		Max: loc.Add(Vec{X: 80, Y: 32}),
+		Max: loc.Add(Vec{X: 128, Y: 32}),
 	}
 
 	button := &Button{
-		rect: rect,
-		text: text,
+		Colors: colors,
+		Rect:   rect,
+		Text:   text,
 	}
 
 	return button
@@ -34,19 +41,14 @@ func (b *Button) Hover(loc Vec) bool {
 		return false
 	}
 
-	hover := b.rect.Contains(loc)
+	hover := b.Rect.Contains(loc)
 
 	b.hover = hover && !b.Disabled
 	return hover
 }
 
 func (b *Button) IsClicked(loc Vec, clicked bool) bool {
-	if b == nil || b.Disabled {
-		return false
-	}
-
-	b.clicked = clicked && b.rect.Contains(loc)
-	return b.clicked
+	return clicked && b.Hover(loc)
 }
 
 func (b *Button) Draw(target *ebiten.Image) {
@@ -54,24 +56,20 @@ func (b *Button) Draw(target *ebiten.Image) {
 		return
 	}
 
-	fillColor := rgbaOf(0x6f8b6eff)
+	fillColor := b.Colors.Normal
 	switch {
 	case b.Disabled:
-		fillColor = rgbaOf(0x808080ff)
-	case b.clicked:
-		fillColor = rgbaOf(0xb089abff)
+		fillColor = b.Colors.Disabled
 	case b.hover:
-		fillColor = rgbaOf(0x87a985ff)
+		fillColor = b.Colors.Hover
 	}
 
-	loc := b.rect.Min.AsVec32()
-	width := float32(b.rect.Width())
-	height := float32(b.rect.Height())
+	// draw the rectangle
+	loc := b.Rect.Min.AsVec32()
+	width := float32(b.Rect.Width())
+	height := float32(b.Rect.Height())
 	vector.DrawFilledRect(target, loc.X, loc.Y, width, height, fillColor, true)
 
-	// draw text on the button image
-	x := int(b.rect.Min.X + 12)
-	y := int(height/2 + float32(Font.Metrics().Ascent.Round())/2 + loc.Y)
-	etext.Draw(target, b.text, Font, x, y, rgbaOf(0xffffffff))
-
+	// draw the text
+	DrawTextCenter(target, b.Text, Font16, b.Rect.Center(), color.White)
 }

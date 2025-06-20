@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/text"
 )
 
 type Loader[T any] struct {
@@ -68,15 +67,8 @@ func (l *Loader[T]) Draw(screen *ebiten.Image) {
 }
 
 func (l *Loader[T]) drawText(screen *ebiten.Image, t string) {
-	screenSize := imageSizeOf(screen)
-	x := screenSize.X/2 - 64
-	y := screenSize.Y/2 - float64(Font.Metrics().Ascent.Round()/2)
-
-	var op ebiten.DrawImageOptions
-	op.GeoM.Scale(2, 2)
-	op.GeoM.Translate(x, y)
-
-	text.DrawWithOptions(screen, t, Font, &op)
+	center := imageSizeOf(screen).Mulf(0.5)
+	DrawTextCenter(screen, t, Font16, center, BackgroundColor)
 }
 
 func (l *Loader[T]) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

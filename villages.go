@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/colorm"
-	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"image/color"
@@ -90,7 +89,7 @@ func (idx *GridIndex) Extract(query *Segment, distThreshold float64) []*Segment 
 	return result
 }
 
-func CollectVillages(rng *rand.Rand, grid Grid, segments []*Segment) []*Village {
+func CollectVillages(rng *rand.Rand, grid Grid) []*Village {
 	names := Shuffled(rng, names)
 
 	index := NewGridIndex(grid)
@@ -201,11 +200,11 @@ func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
 	tPopulation := fmt.Sprintf("Population: %d", village.PopulationCount)
 
 	// calculate the size we need to draw the text
-	bName := MeasureText(Font, village.Name).Mulf(2.0)
-	bPopulation := MeasureText(Font, tPopulation)
+	bName := MeasureText(Font24, village.Name)
+	bPopulation := MeasureText(Font12, tPopulation)
 
 	// calculate the rectangle size
-	size := Vec{X: max(bName.X, bPopulation.X) + 16, Y: bName.Y + bPopulation.Y}
+	size := Vec{X: max(bName.X, bPopulation.X) + 32, Y: bName.Y + bPopulation.Y + 24}
 
 	if int(pos.X) > imageWidth(target)*3/4 {
 		// anchor tooltip top right corner
@@ -217,7 +216,7 @@ func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
 
 	// draw tooltip
 	{
-		pos := pos.Sub(Vec{X: 16, Y: 24})
+		pos := pos.Sub(Vec{X: 16, Y: 8})
 
 		var cm colorm.ColorM
 		cm.ScaleWithColor(rgbaOf(0xeee1c4ff))
@@ -229,21 +228,11 @@ func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
 	}
 
 	// draw header line
-	{
-		var op ebiten.DrawImageOptions
-		op.GeoM.Scale(2.0, 2.0)
-		op.GeoM.Translate(pos.X, pos.Y)
-		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
-		text.DrawWithOptions(target, village.Name, Font, &op)
-	}
+	DrawTextLeft(target, village.Name, Font24, pos, rgbaOf(0xa05e5eff))
 
 	// draw population
-	{
-		var op ebiten.DrawImageOptions
-		op.GeoM.Translate(pos.X-4, pos.Y+16.0)
-		op.ColorScale.ScaleWithColor(rgbaOf(0xa05e5eff))
-		text.DrawWithOptions(target, tPopulation, Font, &op)
-	}
+	pos.Y += 32
+	DrawTextLeft(target, tPopulation, Font12, pos, rgbaOf(0xa05e5eff))
 }
 
 func pathOf(points []Vec, close bool) vector.Path {

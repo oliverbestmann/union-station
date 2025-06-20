@@ -1,19 +1,34 @@
 package main
 
 import (
-	"github.com/hajimehoshi/bitmapfont"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/colorm"
+	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/oliverbestmann/union-station/assets"
 	. "github.com/quasilyte/gmath"
-	"golang.org/x/image/font"
 	"image/color"
 	"iter"
 	"math"
 	"sync/atomic"
 )
 
-var Font = bitmapfont.Gothic12r
+var Font = assets.Font()
+
+var Font12 = &text.GoTextFace{
+	Source: Font,
+	Size:   12.0,
+}
+
+var Font16 = &text.GoTextFace{
+	Source: Font,
+	Size:   16.0,
+}
+
+var Font24 = &text.GoTextFace{
+	Source: Font,
+	Size:   24.0,
+}
 
 func pop[T any](values *[]T) T {
 	n := len(*values)
@@ -149,14 +164,9 @@ func rgbaOf(rgba uint32) color.NRGBA {
 
 var DebugColor = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
 
-func MeasureText(face font.Face, text string) Vec {
-	bounds, _ := font.BoundString(face, text)
-
-	size := bounds.Max.Sub(bounds.Min)
-	width := size.X.Ceil()
-	height := size.Y.Ceil()
-
-	return Vec{X: float64(width), Y: float64(height)}
+func MeasureText(face text.Face, t string) Vec {
+	width, height := text.Measure(t, face, 0)
+	return Vec{X: width, Y: height}
 }
 
 func MaxOf[T any](values iter.Seq[T], scoreOf func(value T) float64) T {
@@ -201,4 +211,31 @@ func imageHeight(img *ebiten.Image) int {
 
 func imageWidth(img *ebiten.Image) int {
 	return img.Bounds().Dx()
+}
+
+func DrawTextCenter(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(pos.X, pos.Y)
+	op.PrimaryAlign = text.AlignCenter
+	op.SecondaryAlign = text.AlignCenter
+	op.ColorScale.ScaleWithColor(color)
+	text.Draw(target, msg, face, op)
+}
+
+func DrawTextLeft(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(pos.X, pos.Y)
+	op.PrimaryAlign = text.AlignStart
+	op.SecondaryAlign = text.AlignStart
+	op.ColorScale.ScaleWithColor(color)
+	text.Draw(target, msg, face, op)
+}
+
+func DrawTextRight(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
+	op := &text.DrawOptions{}
+	op.GeoM.Translate(pos.X, pos.Y)
+	op.PrimaryAlign = text.AlignEnd
+	op.SecondaryAlign = text.AlignStart
+	op.ColorScale.ScaleWithColor(color)
+	text.Draw(target, msg, face, op)
 }
