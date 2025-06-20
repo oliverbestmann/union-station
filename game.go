@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/oliverbestmann/union-station/assets"
 	. "github.com/quasilyte/gmath"
+	"image/color"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -53,6 +54,8 @@ type Game struct {
 	render  RenderSegments
 	streets *ebiten.Image
 
+	terrainGenerator *TerrainGenerator
+
 	hoveredStation     *Station
 	selectedStationOne *Station
 	selectedStationTwo *Station
@@ -87,11 +90,11 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 func (g *Game) Reset(seed uint64) {
 	*g = Game{
 		initialized:  true,
+		debug:        Debug,
 		seed:         seed,
 		audio:        g.audio,
 		screenWidth:  g.screenWidth,
 		screenHeight: g.screenHeight,
-		debug:        true,
 	}
 
 	g.startTime = time.Now()
@@ -106,8 +109,11 @@ func (g *Game) Reset(seed uint64) {
 
 	g.rng = RandWithSeed(seed)
 
+	g.terrainGenerator = NewTerrainGenerator(g.rng, g.worldSize)
+	g.terrainGenerator.Generate()
+
 	// discard streets outside of the visible world
-	g.gen = NewStreetGenerator(g.rng, g.worldSize)
+	g.gen = NewStreetGenerator(g.rng, g.worldSize, g.terrainGenerator.Water())
 
 	// enqueue a starting point for the street generator
 	g.gen.Push(PendingSegment{
@@ -201,8 +207,7 @@ func (g *Game) updateStreetsImage() {
 
 	// re-render al streets if needed
 	if dirty {
-		// clear the image
-		g.streets.Fill(BackgroundColor)
+		g.streets.Fill(color.Transparent)
 
 		// draw the streets to the image
 		g.render.Draw(g.streets, g.toScreen)
@@ -333,7 +338,6 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 
 	yield("Render all streets to a new image")
 	image := ebiten.NewImage(g.screenWidth, g.screenHeight)
-	image.Fill(BackgroundColor)
 	render.Draw(image, g.toScreen)
 
 	// find villages
@@ -374,15 +378,27 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 // Draw draws the game screen.
 // Draw is called every frame (typically 1/60[s] for 60Hz display).
 func (g *Game) Draw(screen *ebiten.Image) {
+	screen.Fill(BackgroundColor)
+
+	// draw river
+	g.terrainGenerator.Draw(screen, g.toScreen)
+
+	// draw background & streets
 	screen.DrawImage(g.streets, nil)
 
-	if ebiten.IsKeyPressed(ebiten.KeyN) {
-		if g.noise == nil {
-			// generate an image from noise
-			g.noise = noiseToImage(g.gen.Noise(), g.screenWidth, g.screenHeight, g.toWorld)
+	if g.debug {
+		if ebiten.IsKeyPressed(ebiten.KeyN) {
+			if g.noise == nil {
+				// generate an image from noise
+				g.noise = populationToImage(g.gen.Noise(), g.screenWidth, g.screenHeight, g.toWorld)
+			}
+
+			screen.DrawImage(g.noise, nil)
 		}
 
-		screen.DrawImage(g.noise, nil)
+		if ebiten.IsKeyPressed(ebiten.KeyT) {
+			g.terrainGenerator.DebugDraw(screen, g.toScreen)
+		}
 	}
 
 	// check if any village should be highlighted
@@ -517,33 +533,33 @@ func (g *Game) stationColorOf(station *Station) StationColor {
 func (g *Game) DrawDebugText(screen *ebiten.Image) {
 	pos := vecSplat(32)
 	t := fmt.Sprintf("%1.1f fps, seed %d", ebiten.ActualFPS(), g.seed)
-	DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
+	DrawTextLeft(screen, t, Font16, pos, DebugColor)
 
 	pos.Y += 24
 	t = fmt.Sprintf("Street Segments: %d", len(g.gen.segments))
-	DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
+	DrawTextLeft(screen, t, Font16, pos, DebugColor)
 
 	if !g.streetGenerationEndTime.IsZero() {
 		pos.Y += 24
 		t = fmt.Sprintf("Street generation took %s", g.streetGenerationEndTime.Sub(g.startTime))
-		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
+		DrawTextLeft(screen, t, Font16, pos, DebugColor)
 	}
 
 	if result := g.villagesAsync.Get(); result != nil {
 		pos.Y += 24
 		t = fmt.Sprintf("City generation took %s", result.EndTime.Sub(g.startTime))
-		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
+		DrawTextLeft(screen, t, Font16, pos, DebugColor)
 
 		pos.Y += 24
 		checkValue := fmt.Sprintf("%x", result.RNGCheck)
 		t = fmt.Sprintf("Random check value: %s", checkValue[:6])
-		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
+		DrawTextLeft(screen, t, Font16, pos, DebugColor)
 	}
 
 	if progress := g.villagesAsync.Status(); progress != nil {
 		pos.Y += 24
 		t = *progress + "..."
-		DrawTextLeft(screen, t, Font16, pos, DebugTextColor)
+		DrawTextLeft(screen, t, Font16, pos, DebugColor)
 	}
 }
 

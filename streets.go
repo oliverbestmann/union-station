@@ -148,9 +148,10 @@ type StreetGenerator struct {
 	segmentsQueue PendingSegmentQueue
 	segments      []*Segment
 	grid          Grid
+	rivers        []Vec
 }
 
-func NewStreetGenerator(rng *rand.Rand, clip Rect) StreetGenerator {
+func NewStreetGenerator(rng *rand.Rand, clip Rect, rivers []Vec) StreetGenerator {
 	noise := fastnoiselite.NewNoise()
 	noise = fastnoiselite.NewNoise()
 	noise.SetNoiseType(fastnoiselite.NoiseTypeValueCubic)
@@ -158,9 +159,10 @@ func NewStreetGenerator(rng *rand.Rand, clip Rect) StreetGenerator {
 	noise.Frequency = 0.0008
 
 	return StreetGenerator{
-		Clip:  clip,
-		rng:   rng,
-		noise: noise,
+		Clip:   clip,
+		rng:    rng,
+		noise:  noise,
+		rivers: rivers,
 	}
 }
 
@@ -187,6 +189,11 @@ func (gen *StreetGenerator) Next() *Segment {
 
 	if !gen.Clip.Contains(segment.Start) && !gen.Clip.Contains(segment.End) {
 		// skip if out of the screen
+		return nil
+	}
+
+	// kill the segment if it reaches the river
+	if gen.nearWater(segment) {
 		return nil
 	}
 
@@ -356,10 +363,26 @@ func (gen *StreetGenerator) nextVec(pos Vec, prevAngle Rad, maxAngle Rad) Vec {
 }
 
 func (gen *StreetGenerator) PopulationAt(point Vec) float64 {
-	return noiseValueAt(gen.noise, point)
+	return populationValueAt(gen.noise, point)
 }
 
-func noiseValueAt(noise *fastnoiselite.FastNoiseLite, point Vec) float64 {
+func (gen *StreetGenerator) nearWater(segment *Segment) bool {
+	const distThreshold = 400 * 400
+
+	for _, point := range gen.rivers {
+		if segment.Start.DistanceSquaredTo(point) < distThreshold {
+			return true
+		}
+
+		if segment.End.DistanceSquaredTo(point) < distThreshold {
+			return true
+		}
+	}
+
+	return false
+}
+
+func populationValueAt(noise *fastnoiselite.FastNoiseLite, point Vec) float64 {
 	value := noise.GetNoise2D(fastnoiselite.FNLfloat(point.X), fastnoiselite.FNLfloat(point.Y))
 	return max(0, value)
 }
@@ -404,7 +427,7 @@ func lineIntersection(p1, p2, q1, q2 Vec) (Vec, bool) {
 	return p1.Add(p2.Sub(p1).Mulf(t)), ok
 }
 
-func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, toWorld ebiten.GeoM) *ebiten.Image {
+func populationToImage(noise *fastnoiselite.FastNoiseLite, width, height int, toWorld ebiten.GeoM) *ebiten.Image {
 	pixels := make([]uint8, width*height*4)
 
 	var pos int
@@ -412,7 +435,7 @@ func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, toWorld
 		for x := range width {
 			trX, trY := toWorld.Apply(float64(x), float64(y))
 
-			noiseValue := noiseValueAt(noise, Vec{X: trX, Y: trY})
+			noiseValue := populationValueAt(noise, Vec{X: trX, Y: trY})
 
 			pxValue := uint8(noiseValue * 0xff)
 
@@ -421,6 +444,31 @@ func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, toWorld
 			}
 
 			pixels[pos+3] = pxValue
+
+			pos += 4
+		}
+	}
+
+	img := ebiten.NewImage(width, height)
+	img.WritePixels(pixels)
+	return img
+}
+
+func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, toWorld ebiten.GeoM) *ebiten.Image {
+	pixels := make([]uint8, width*height*4)
+
+	var pos int
+	for y := range height {
+		for x := range width {
+			trX, trY := toWorld.Apply(float64(x), float64(y))
+
+			noiseValue := noise.GetNoise2D(fastnoiselite.FNLfloat(trX), fastnoiselite.FNLfloat(trY))
+
+			pxValue := uint8((noiseValue + 1) / 2 * 0xff)
+			pixels[pos+0] = pxValue
+			pixels[pos+1] = pxValue
+			pixels[pos+2] = pxValue
+			pixels[pos+3] = 0xff
 
 			pos += 4
 		}
@@ -580,20 +628,11 @@ func (r *RenderSegments) Draw(screen *ebiten.Image, toScreen ebiten.GeoM) {
 		vertices := r.VerticesChunks[chunk]
 		indices := r.IndicesChunks[chunk]
 
-		// transform vertices to screen
-		trVertices := r.tempVertices[:0]
-		for _, vertex := range vertices {
-			x, y := toScreen.Apply(float64(vertex.DstX), float64(vertex.DstY))
-			vertex.DstX, vertex.DstY = float32(x), float32(y)
-			trVertices = append(trVertices, vertex)
-		}
+		trVertices := TransformVertices(toScreen, vertices, &r.tempVertices)
 
 		// render vertices
 		op := &ebiten.DrawTrianglesOptions{}
 		op.AntiAlias = true
 		screen.DrawTriangles(trVertices, indices, whiteImage, op)
-
-		// keep the slice to re-use
-		r.tempVertices = trVertices[:0]
 	}
 }

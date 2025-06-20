@@ -32,9 +32,10 @@ var StationColorConstructed = StationColor{
 	Stroke: rgbaOf(0x6f8b6eff),
 }
 
+var DebugColor = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
 var BackgroundColor = rgbaOf(0xdbcfb1ff)
-var DebugTextColor = rgbaOf(0xff00ffff)
 var HudTextColor = rgbaOf(0xa05e5eff)
+var WaterColor = rgbaOf(0x6d838eff)
 
 var BuildButtonColors = ButtonColors{
 	Normal:   rgbaOf(0x6f8b6eff),

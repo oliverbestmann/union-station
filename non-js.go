@@ -6,6 +6,8 @@ import (
 	"github.com/pkg/profile"
 )
 
+var Debug = true
+
 func ProfileCPU() func() {
 	return profile.Start(profile.CPUProfile).Stop
 }

@@ -10,6 +10,8 @@ func ProfileCPU() func() {
 	return func() {}
 }
 
+var Debug = false
+
 type IdleSuspend struct {
 	/// the timeRemaining function given by the previous idleCallback
 	timeRemaining func() float64

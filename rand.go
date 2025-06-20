@@ -9,7 +9,7 @@ func RandWithSeed(seed uint64) *rand.Rand {
 
 }
 
-func randf[T ~float64](rng *rand.Rand, min, max T) T {
+func randf[T ~float64 | ~float32](rng *rand.Rand, min, max T) T {
 	return T(rng.Float64())*(max-min) + min
 }
 

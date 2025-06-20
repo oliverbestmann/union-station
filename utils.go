@@ -162,8 +162,6 @@ func rgbaOf(rgba uint32) color.NRGBA {
 	}
 }
 
-var DebugColor = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
-
 func MeasureText(face text.Face, t string) Vec {
 	width, height := text.Measure(t, face, 0)
 	return Vec{X: width, Y: height}
@@ -232,4 +230,25 @@ func DrawTextLeft(target *ebiten.Image, msg string, face text.Face, pos Vec, col
 
 func DrawTextRight(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color) {
 	DrawText(target, msg, face, pos, color, text.AlignEnd, text.AlignStart)
+}
+
+func TransformVertices(tr ebiten.GeoM, vertices []ebiten.Vertex, reuse *[]ebiten.Vertex) []ebiten.Vertex {
+	var trVertices []ebiten.Vertex
+
+	if reuse != nil {
+		// transform vertices to screen
+		trVertices = (*reuse)[:0]
+	}
+
+	for _, vertex := range vertices {
+		x, y := tr.Apply(float64(vertex.DstX), float64(vertex.DstY))
+		vertex.DstX, vertex.DstY = float32(x), float32(y)
+		trVertices = append(trVertices, vertex)
+	}
+
+	if reuse != nil {
+		*reuse = trVertices[:0]
+	}
+
+	return trVertices
 }
