@@ -2,7 +2,9 @@
 
 package main
 
-import "github.com/pkg/profile"
+import (
+	"github.com/pkg/profile"
+)
 
 func ProfileCPU() func() {
 	return profile.Start(profile.CPUProfile).Stop

@@ -20,7 +20,8 @@ func main() {
 	game := &Loader[Audio]{
 		// load audio task
 		Promise: AsyncTask(func(yield func(string)) Audio {
-			time.Sleep(100 * time.Millisecond)
+			// time.Sleep(100 * time.Millisecond)
+
 			var idle IdleSuspend
 
 			yield("music")
@@ -43,6 +44,9 @@ func main() {
 			return &Game{
 				audio: audio,
 				seed:  14,
+
+				screenWidth:  screenWidth * renderScale,
+				screenHeight: screenHeight * renderScale,
 			}
 		},
 	}

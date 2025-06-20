@@ -8,10 +8,11 @@ import (
 )
 
 type Button struct {
-	text    string
-	rect    Rect
-	hover   bool
-	clicked bool
+	Disabled bool
+	text     string
+	rect     Rect
+	hover    bool
+	clicked  bool
 }
 
 func NewButton(text string, loc Vec) *Button {
@@ -33,12 +34,14 @@ func (b *Button) Hover(loc Vec) bool {
 		return false
 	}
 
-	b.hover = b.rect.Contains(loc)
-	return b.hover
+	hover := b.rect.Contains(loc)
+
+	b.hover = hover && !b.Disabled
+	return hover
 }
 
 func (b *Button) IsClicked(loc Vec, clicked bool) bool {
-	if b == nil {
+	if b == nil || b.Disabled {
 		return false
 	}
 
@@ -53,6 +56,8 @@ func (b *Button) Draw(target *ebiten.Image) {
 
 	fillColor := rgbaOf(0x6f8b6eff)
 	switch {
+	case b.Disabled:
+		fillColor = rgbaOf(0x808080ff)
 	case b.clicked:
 		fillColor = rgbaOf(0xb089abff)
 	case b.hover:

@@ -10,6 +10,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"time"
 )
 
@@ -19,6 +20,8 @@ type VillageCalculation struct {
 	Villages []*Village
 	Stations []*Station
 	Render   RenderSegments
+	Mst      StationGraph
+	Stats    Stats
 }
 
 // Game implements ebiten.Game interface.
@@ -69,25 +72,15 @@ type Game struct {
 	planningGraph StationGraph
 
 	audio Audio
+	stats Stats
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	_ = outsideWidth
 	_ = outsideHeight
 
-	// limit size
-	outsideWidth = min(outsideWidth, 2048)
-
-	// always keep aspect ratio
-	height := 480 * outsideWidth / 800
-
-	if g.screenWidth != outsideWidth || g.screenHeight != height {
-		g.screenWidth = outsideWidth
-		g.screenHeight = height
-
-		g.updateTransform()
-	}
-
-	return outsideWidth, height
+	// stay with a fixed screen size
+	return g.screenWidth, g.screenHeight
 }
 
 func (g *Game) Reset(seed uint64) {
@@ -171,6 +164,7 @@ func (g *Game) Update() error {
 		// keep updated values
 		g.render = res.Render
 		g.streets = res.Image
+		g.stats = res.Stats
 	}
 
 	g.updateStreetsImage()
@@ -196,30 +190,20 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) updateStreetsImage() {
-	//  need to re-render the image if it does not exist or if the size has changed
-	imageSizeChanged := g.streets != nil && (imageHeight(g.streets) != g.screenWidth || imageWidth(g.streets) != g.screenHeight)
+	dirty := g.render.Dirty
+
+	// if we have no image, create one
+	if g.streets == nil {
+		g.streets = ebiten.NewImage(g.screenWidth, g.screenHeight)
+		dirty = true
+	}
 
 	// re-render al streets if needed
-	if g.streets == nil || imageSizeChanged || g.render.Dirty {
-		if g.streets == nil || imageSizeChanged {
-			// we have no image or need to recreate it
-			g.streets = ebiten.NewImage(g.screenWidth, g.screenHeight)
-		}
-
+	if dirty {
 		// clear the image
 		g.streets.Fill(BackgroundColor)
 
-		// if size has changed, we need to reproject the streets from world space to screen space
-		if imageSizeChanged {
-			var render RenderSegments
-			for _, segment := range g.gen.Segments() {
-				render.Add(segment, g.toWorld)
-			}
-
-			g.render = render
-		}
-
-		// now draw the streets to the image
+		// draw the streets to the image
 		g.render.Draw(g.streets, g.toScreen)
 	}
 }
@@ -248,6 +232,9 @@ func (g *Game) Input() {
 
 		// and remove it from planning, if it is still in there
 		g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
+
+		// spend the money
+		g.stats.CoinsSpent += edge.Price()
 
 		g.resetInput()
 	}
@@ -303,11 +290,17 @@ func (g *Game) Input() {
 				// select the clicked village (or nil, if none was clicked)
 				g.selectedStationTwo = currentStation
 
+				// text should include the price
+				price := priceOf(g.selectedStationOne, g.selectedStationTwo)
+				acceptText := fmt.Sprintf("Build (%s)", price)
+
 				// show the buttons near the click location
 				buttonVec := g.cursorScreen.Add(vecSplat(-16))
-				g.btnAcceptConnection = NewButton("Build", buttonVec)
+				g.btnAcceptConnection = NewButton(acceptText, buttonVec)
 				g.btnPlanningConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}))
 				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}))
+
+				g.btnAcceptConnection.Disabled = g.stats.CoinsAvailable() < price
 			}
 		}
 	}
@@ -347,7 +340,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 	yield("Calculate clip rectangle")
 
 	// do not place anything near the edge of the screen
-	clipThreshold := TransformScalar(g.toWorld, 128)
+	const clipThreshold = 1_500 // m
 	clip := Rect{
 		Min: g.worldSize.Min.Add(Vec{X: clipThreshold, Y: clipThreshold}),
 		Max: g.worldSize.Max.Sub(Vec{X: clipThreshold, Y: clipThreshold}),
@@ -356,12 +349,20 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 	yield("Generating stations")
 	stations := GenerateStations(g.rng, clip, villages)
 
+	yield("Calculate mst")
+	mst := computeMST(stations)
+
 	return VillageCalculation{
 		EndTime:  time.Now(),
 		Villages: villages,
 		Stations: stations,
 		Image:    image,
 		Render:   render,
+		Mst:      mst,
+		Stats: Stats{
+			// calculate the amount of money the player should have available
+			CoinsTotal: mst.TotalPrice() * 10 / 9,
+		},
 	}
 }
 
@@ -383,6 +384,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if result := g.villagesAsync.Get(); result != nil {
 		g.drawVillageCalculation(screen, result)
 	}
+
+	g.drawHUD(screen)
 
 	g.btnAcceptConnection.Draw(screen)
 	g.btnPlanningConnection.Draw(screen)
@@ -406,7 +409,27 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
+func (g *Game) drawHUD(screen *ebiten.Image) {
+	// draw the hud
+	top := ebiten.DrawImageOptions{}
+	top.GeoM.Scale(2, 2)
+	top.GeoM.Translate(float64(imageWidth(screen)-96), 32)
+	text.DrawWithOptions(screen, strconv.Itoa(int(g.stats.CoinsAvailable())), Font, &top)
+
+	top.GeoM.Translate(0, 32)
+	text.DrawWithOptions(screen, strconv.Itoa(int(g.stats.CoinsAvailable()-g.stats.CoinsPlanned)), Font, &top)
+
+	top.GeoM.Translate(0, 32)
+	text.DrawWithOptions(screen, strconv.Itoa(int(g.stats.CoinsPlanned)), Font, &top)
+}
+
 func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {
+	if g.debug && ebiten.IsKeyPressed(ebiten.KeyS) {
+		for _, edge := range result.Mst.Edges() {
+			DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, StationColorHover)
+		}
+	}
+
 	// walk through the edges we've planned and paint them
 	for _, edge := range g.planningGraph.Edges() {
 		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, StationColorPlanned)

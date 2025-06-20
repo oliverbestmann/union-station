@@ -105,7 +105,7 @@ func (p Promise[T, P]) GetOnce() *T {
 	}
 
 	value := p.result.Load()
-	if !p.seen.CompareAndSwap(false, true) {
+	if value != nil && !p.seen.CompareAndSwap(false, true) {
 		return nil
 	}
 
@@ -196,9 +196,9 @@ func imageSizeOf(image *ebiten.Image) Vec {
 }
 
 func imageHeight(img *ebiten.Image) int {
-	return img.Bounds().Dx()
+	return img.Bounds().Dy()
 }
 
 func imageWidth(img *ebiten.Image) int {
-	return img.Bounds().Dy()
+	return img.Bounds().Dx()
 }

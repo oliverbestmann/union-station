@@ -63,10 +63,23 @@ func (sg *StationGraph) EdgesOf(station *Station) []*StationEdge {
 	return edges
 }
 
+func (sg *StationGraph) TotalPrice() Coins {
+	var coinsTotal Coins
+	for _, edge := range sg.Edges() {
+		coinsTotal += edge.Price()
+	}
+
+	return coinsTotal
+}
+
 type StationEdge struct {
 	Created time.Time
 	One     *Station
 	Two     *Station
+}
+
+func (edge *StationEdge) Price() Coins {
+	return priceOf(edge.One, edge.Two)
 }
 
 func (edge *StationEdge) Contains(other *Station) bool {

@@ -198,19 +198,26 @@ func DrawVillageBounds(target *ebiten.Image, village *Village, opts DrawVillageB
 }
 
 func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
-	// anchor tooltip at the top left corner
-	pos = pos.Add(Vec{X: 16, Y: 24})
-
 	tPopulation := fmt.Sprintf("Population: %d", village.PopulationCount)
 
 	// calculate the size we need to draw the text
 	bName := MeasureText(Font, village.Name).Mulf(2.0)
 	bPopulation := MeasureText(Font, tPopulation)
 
+	// calculate the rectangle size
+	size := Vec{X: max(bName.X, bPopulation.X) + 16, Y: bName.Y + bPopulation.Y}
+
+	if int(pos.X) > imageWidth(target)*3/4 {
+		// anchor tooltip top right corner
+		pos = pos.Add(Vec{X: -size.X - 16, Y: 24})
+	} else {
+		// anchor tooltip at the top left corner
+		pos = pos.Add(Vec{X: 16, Y: 24})
+	}
+
 	// draw tooltip
 	{
 		pos := pos.Sub(Vec{X: 16, Y: 24})
-		size := Vec{X: max(bName.X, bPopulation.X) + 16, Y: bName.Y + bPopulation.Y}
 
 		var cm colorm.ColorM
 		cm.ScaleWithColor(rgbaOf(0xeee1c4ff))

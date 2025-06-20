@@ -38,6 +38,11 @@ func (l *Loader[T]) Update() error {
 			l.game.Layout(l.screenWidth, l.screenHeight)
 
 			l.loaded = true
+
+			if AudioContext().IsReady() {
+				// directly jump to playing as fast as possible
+				l.playing = true
+			}
 		}
 	}
 
