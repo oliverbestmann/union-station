@@ -74,6 +74,9 @@ type Game struct {
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	_ = outsideHeight
 
+	// limit size
+	outsideWidth = min(outsideWidth, 2048)
+
 	// always keep aspect ratio
 	height := 480 * outsideWidth / 800
 
