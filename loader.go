@@ -68,7 +68,7 @@ func (l *Loader[T]) Draw(screen *ebiten.Image) {
 
 func (l *Loader[T]) drawText(screen *ebiten.Image, t string) {
 	center := imageSizeOf(screen).Mulf(0.5)
-	DrawTextCenter(screen, t, Font16, center, BackgroundColor)
+	DrawTextCenter(screen, t, Font24, center, BackgroundColor)
 }
 
 func (l *Loader[T]) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {

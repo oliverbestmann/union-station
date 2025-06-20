@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/oliverbestmann/union-station/assets"
 	. "github.com/quasilyte/gmath"
 	"math"
 	"math/rand/v2"
@@ -401,7 +402,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	pos := Vec{X: float64(imageWidth(screen) - 32), Y: 16}
+	textSpace := 100.0
+
+	pos := Vec{X: float64(imageWidth(screen)-32) - textSpace, Y: 16}
 	screenSize := imageSizeOf(screen)
 
 	op := &ebiten.DrawImageOptions{}
@@ -410,8 +413,13 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	screen.DrawImage(whiteImage, op)
 
 	if g.stats.CoinsTotal > 0 {
-		msg := fmt.Sprintf("%s remaining, %s scheduled", g.stats.CoinsAvailable(), g.stats.CoinsPlanned)
-		DrawTextRight(screen, msg, Font24, pos, HudTextColor)
+		msg := fmt.Sprintf("%d", g.stats.CoinsAvailable())
+		DrawTextLeft(screen, msg, Font24, pos, HudTextColor)
+
+		// draw the coin icon in-front of the text
+		op := &ebiten.DrawImageOptions{}
+		op.GeoM.Translate(pos.X-40, pos.Y)
+		screen.DrawImage(assets.Coin(), op)
 	}
 
 	// if we're busy, paint a busy indicator
