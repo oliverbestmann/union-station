@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
+	"math"
 	"math/rand/v2"
 	"slices"
 	"time"
@@ -230,11 +231,12 @@ func (g *Game) Input() {
 		// and remove it from planning, if it is still in there
 		g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
 
-		// spend the money
-		g.stats.CoinsSpent += edge.Price()
-
 		g.resetInput()
 	}
+
+	// update the amount of money spend
+	g.stats.CoinsSpent = g.acceptedGraph.TotalPrice()
+	g.stats.CoinsPlanned = g.planningGraph.TotalPrice()
 
 	if g.btnPlanningConnection.IsClicked(g.cursorScreen, g.clicked) {
 		// hide all buttons
@@ -359,7 +361,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 		Mst:      mst,
 		Stats: Stats{
 			// calculate the amount of money the player should have available
-			CoinsTotal: mst.TotalPrice() * 10 / 9,
+			CoinsTotal: Coins(math.Ceil(float64(mst.TotalPrice())*1.1/10) * 10),
 		},
 	}
 }

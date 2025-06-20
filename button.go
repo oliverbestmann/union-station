@@ -48,6 +48,10 @@ func (b *Button) Hover(loc Vec) bool {
 }
 
 func (b *Button) IsClicked(loc Vec, clicked bool) bool {
+	if b != nil && b.Disabled {
+		return false
+	}
+
 	return clicked && b.Hover(loc)
 }
 
