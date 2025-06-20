@@ -54,7 +54,7 @@ func (l *Loader[T]) Draw(screen *ebiten.Image) {
 		l.game.Draw(screen)
 
 	case l.loaded:
-		l.drawText(screen, "click anywhere to continue")
+		l.drawText(screen, "click anywhere to start")
 
 	default:
 		desc := "loading..."
