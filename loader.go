@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
+	"runtime"
 )
 
 type Loader[T any] struct {
@@ -35,6 +36,8 @@ func (l *Loader[T]) Update() error {
 		if result := l.Promise.Get(); result != nil {
 			l.game = l.Next(*result)
 			l.game.Layout(l.screenWidth, l.screenHeight)
+
+			runtime.GC()
 
 			l.loaded = true
 

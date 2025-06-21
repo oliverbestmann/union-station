@@ -297,7 +297,7 @@ func (g *Game) Input() {
 				acceptText := fmt.Sprintf("Build (%s)", price)
 
 				// show the buttons near the click location
-				buttonVec := g.cursorScreen.Add(splatVec(-16))
+				buttonVec := g.cursorScreen.Add(Vec{X: -32, Y: -16})
 				g.btnAcceptConnection = NewButton(acceptText, buttonVec, BuildButtonColors)
 				g.btnPlanningConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}), PlanButtonColors)
 				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}), CancelButtonColors)
