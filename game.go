@@ -78,6 +78,8 @@ type Game struct {
 	audio            Audio
 	stats            Stats
 	terrainGenerator *TerrainGenerator
+
+	loosingIsGuaranteed bool
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -366,7 +368,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 	stations := GenerateStations(g.rng, clip, villages)
 
 	yield("Calculate mst")
-	mst := computeMST(StationGraph{Stations: stations})
+	mst := BuildMST(StationGraph{Stations: stations})
 
 	return VillageCalculation{
 		EndTime:  time.Now(),
@@ -445,6 +447,12 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Translate(pos.X-40, pos.Y)
 		screen.DrawImage(assets.Coin(), op)
+
+		if g.loosingIsGuaranteed {
+			center := imageSizeOf(screen).Mulf(0.5)
+			pos := Vec{X: center.X, Y: pos.Y}
+			DrawText(screen, "Winning is not possible anymore", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
+		}
 	}
 
 	// if we're busy, paint a busy indicator
@@ -470,7 +478,7 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 	if g.debug {
 		// remaining best solution
 		if ebiten.IsKeyPressed(ebiten.KeyS) {
-			mst := computeMST(g.acceptedGraph)
+			mst := BuildMST(g.acceptedGraph)
 			for _, edge := range mst.Edges() {
 				DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, DebugColor)
 			}
@@ -600,5 +608,10 @@ func (g *Game) updateTransform() {
 }
 
 func (g *Game) updateCanWin() {
-	g.acceptedGraph.Edges()
+	// calculate the mst based on the current state
+	mst := BuildMST(g.acceptedGraph)
+
+	if mst.TotalPrice() > g.stats.CoinsTotal {
+		g.loosingIsGuaranteed = true
+	}
 }

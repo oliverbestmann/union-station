@@ -241,17 +241,33 @@ func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
 		pos = pos.Add(Vec{X: 16, Y: 24})
 	}
 
-	// draw tooltip
+	// draw tooltip rect & shadow
 	{
 		pos := pos.Sub(Vec{X: 16, Y: 8})
 
-		var cm colorm.ColorM
-		cm.ScaleWithColor(rgbaOf(0xeee1c4ff))
+		// shadow
+		{
+			pos := pos.Add(splatVec(4))
 
-		var op colorm.DrawImageOptions
-		op.GeoM.Scale(size.X, size.Y)
-		op.GeoM.Translate(pos.X, pos.Y)
-		colorm.DrawImage(target, whiteImage, cm, &op)
+			var cm colorm.ColorM
+			cm.ScaleWithColor(TooltipShadowColor)
+
+			var op colorm.DrawImageOptions
+			op.GeoM.Scale(size.X, size.Y)
+			op.GeoM.Translate(pos.X, pos.Y)
+			colorm.DrawImage(target, whiteImage, cm, &op)
+		}
+
+		// tooltip itself
+		{
+			var cm colorm.ColorM
+			cm.ScaleWithColor(TooltipColor)
+
+			var op colorm.DrawImageOptions
+			op.GeoM.Scale(size.X, size.Y)
+			op.GeoM.Translate(pos.X, pos.Y)
+			colorm.DrawImage(target, whiteImage, cm, &op)
+		}
 	}
 
 	// draw header line

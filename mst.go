@@ -4,7 +4,7 @@ import (
 	"sort"
 )
 
-func computeMST(graph StationGraph) StationGraph {
+func BuildMST(graph StationGraph) StationGraph {
 	n := len(graph.Stations)
 
 	uf := NewUnionFind(graph.Stations)

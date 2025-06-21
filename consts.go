@@ -36,6 +36,8 @@ var DebugColor = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
 var BackgroundColor = rgbaOf(0xdbcfb1ff)
 var HudTextColor = rgbaOf(0xa05e5eff)
 var WaterColor = rgbaOf(0x6d838eff)
+var TooltipColor = rgbaOf(0xeee1c4ff)
+var TooltipShadowColor = rgbaOf(0xada38780)
 
 var BuildButtonColors = ButtonColors{
 	Normal:   rgbaOf(0x6f8b6eff),
