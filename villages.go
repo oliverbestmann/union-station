@@ -41,12 +41,12 @@ func (v *Village) Contains(pos Vec) bool {
 }
 
 type GridIndex struct {
-	grid             Grid
+	grid             Grid[*Segment]
 	Remaining        Set[*Segment]
 	remainingOrdered []*Segment
 }
 
-func NewGridIndex(grid Grid) GridIndex {
+func NewGridIndex(grid Grid[*Segment]) GridIndex {
 	pg := GridIndex{grid: grid}
 
 	// need to walk the grid in deterministic order
@@ -63,7 +63,7 @@ func NewGridIndex(grid Grid) GridIndex {
 	for _, key := range keysSorted {
 		cell := grid.cells[key]
 
-		for _, segment := range cell.Segments {
+		for _, segment := range cell.Objects {
 			if segment.Type != StreetTypeLocal {
 				continue
 			}
@@ -102,8 +102,8 @@ func (idx *GridIndex) Extract(query *Segment, distThreshold float64) []*Segment 
 
 	// query the grid for segments within that range
 	for cell := range idx.grid.CellsOf(bbox, false) {
-		for _, segment := range cell.Segments {
-			if idx.Remaining.Has(segment) && query.DistanceTo(segment) <= distThreshold {
+		for _, segment := range cell.Objects {
+			if idx.Remaining.Has(segment) && query.DistanceTo(segment.Line) <= distThreshold {
 				// add segment to the result
 				result = append(result, segment)
 
@@ -116,7 +116,7 @@ func (idx *GridIndex) Extract(query *Segment, distThreshold float64) []*Segment 
 	return result
 }
 
-func CollectVillages(rng *rand.Rand, grid Grid) []*Village {
+func CollectVillages(rng *rand.Rand, grid Grid[*Segment]) []*Village {
 	names := Shuffled(rng, names)
 
 	index := NewGridIndex(grid)

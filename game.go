@@ -54,7 +54,7 @@ type Game struct {
 	render  RenderSegments
 	streets *ebiten.Image
 
-	terrainGenerator *TerrainGenerator
+	terrain Terrain
 
 	hoveredStation     *Station
 	selectedStationOne *Station
@@ -64,9 +64,9 @@ type Game struct {
 	cursorWorld  Vec
 	cursorScreen Vec
 
-	rng  *rand.Rand
-	gen  StreetGenerator
-	seed uint64
+	rng              *rand.Rand
+	streetsGenerator StreetGenerator
+	seed             uint64
 
 	btnAcceptConnection   *Button
 	btnPlanningConnection *Button
@@ -75,8 +75,9 @@ type Game struct {
 	acceptedGraph StationGraph
 	planningGraph StationGraph
 
-	audio Audio
-	stats Stats
+	audio            Audio
+	stats            Stats
+	terrainGenerator *TerrainGenerator
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -109,22 +110,16 @@ func (g *Game) Reset(seed uint64) {
 
 	g.rng = RandWithSeed(seed)
 
+	// generate terrain
 	g.terrainGenerator = NewTerrainGenerator(g.rng, g.worldSize)
-	g.terrainGenerator.Generate()
+	g.terrainGenerator.GenerateRiver()
+	g.terrainGenerator.GenerateRiver()
+	g.terrain = g.terrainGenerator.Terrain()
 
 	// discard streets outside of the visible world
-	g.gen = NewStreetGenerator(g.rng, g.worldSize, g.terrainGenerator.Water())
+	g.streetsGenerator = NewStreetGenerator(g.rng, g.worldSize, g.terrainGenerator.Terrain())
 
-	// enqueue a starting point for the street generator
-	g.gen.Push(PendingSegment{
-		Point: g.worldSize.Center(),
-		Angle: 0,
-	})
-
-	g.gen.Push(PendingSegment{
-		Point: g.worldSize.Center(),
-		Angle: DegToRad(180),
-	})
+	g.streetsGenerator.StartOne(5_000)
 }
 
 func (g *Game) Update() error {
@@ -151,8 +146,8 @@ func (g *Game) Update() error {
 
 	var newSegmentCount int
 
-	for g.gen.More() && time.Since(now) < 12*time.Millisecond {
-		if segment := g.gen.Next(); segment != nil {
+	for g.streetsGenerator.More() && time.Since(now) < 12*time.Millisecond {
+		if segment := g.streetsGenerator.Next(); segment != nil {
 			// draw the segment to the street image
 			g.render.Add(segment, g.toWorld)
 			newSegmentCount += 1
@@ -160,7 +155,7 @@ func (g *Game) Update() error {
 	}
 
 	// check if we've finished remaining generation
-	if newSegmentCount > 0 && !g.gen.More() {
+	if newSegmentCount > 0 && !g.streetsGenerator.More() {
 		g.streetGenerationEndTime = time.Now()
 
 		// asynchronously calculate the villages
@@ -260,7 +255,7 @@ func (g *Game) Input() {
 	var currentStation *Station
 
 	if !inputIntercepted {
-		if result := g.villagesAsync.Get(); result != nil {
+		if result := g.villagesAsync.Get(); result != nil && len(result.Stations) > 0 {
 			// get the station that is nearest to the mouse
 			station := MaxOf(slices.Values(result.Stations), func(station *Station) float64 {
 				return -g.cursorWorld.DistanceSquaredTo(station.Position)
@@ -302,7 +297,7 @@ func (g *Game) Input() {
 				acceptText := fmt.Sprintf("Build (%s)", price)
 
 				// show the buttons near the click location
-				buttonVec := g.cursorScreen.Add(vecSplat(-16))
+				buttonVec := g.cursorScreen.Add(splatVec(-16))
 				g.btnAcceptConnection = NewButton(acceptText, buttonVec, BuildButtonColors)
 				g.btnPlanningConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}), PlanButtonColors)
 				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}), CancelButtonColors)
@@ -332,7 +327,7 @@ func (g *Game) resetInput() {
 func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 	yield("Vectorize streets")
 	var render RenderSegments
-	for _, segment := range g.gen.Segments() {
+	for _, segment := range g.streetsGenerator.Segments() {
 		render.Add(segment, g.toWorld)
 	}
 
@@ -342,7 +337,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 
 	// find villages
 	yield("Collecting villages")
-	villages := CollectVillages(g.rng, g.gen.grid)
+	villages := CollectVillages(g.rng, g.streetsGenerator.Grid())
 
 	yield("Calculate clip rectangle")
 
@@ -381,7 +376,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(BackgroundColor)
 
 	// draw river
-	g.terrainGenerator.Draw(screen, g.toScreen)
+	g.terrain.Draw(screen, g.toScreen)
 
 	// draw background & streets
 	screen.DrawImage(g.streets, nil)
@@ -390,7 +385,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		if ebiten.IsKeyPressed(ebiten.KeyN) {
 			if g.noise == nil {
 				// generate an image from noise
-				g.noise = populationToImage(g.gen.Noise(), g.screenWidth, g.screenHeight, g.toWorld)
+				g.noise = populationToImage(g.streetsGenerator.Noise(), g.screenWidth, g.screenHeight, g.toWorld)
 			}
 
 			screen.DrawImage(g.noise, nil)
@@ -531,12 +526,12 @@ func (g *Game) stationColorOf(station *Station) StationColor {
 }
 
 func (g *Game) DrawDebugText(screen *ebiten.Image) {
-	pos := vecSplat(32)
+	pos := splatVec(32)
 	t := fmt.Sprintf("%1.1f fps, seed %d", ebiten.ActualFPS(), g.seed)
 	DrawTextLeft(screen, t, Font16, pos, DebugColor)
 
 	pos.Y += 24
-	t = fmt.Sprintf("Street Segments: %d", len(g.gen.segments))
+	t = fmt.Sprintf("Street Segments: %d", len(g.streetsGenerator.segments))
 	DrawTextLeft(screen, t, Font16, pos, DebugColor)
 
 	if !g.streetGenerationEndTime.IsZero() {

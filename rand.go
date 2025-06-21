@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/quasilyte/gmath"
 	"math/rand/v2"
 )
 
@@ -9,8 +10,15 @@ func RandWithSeed(seed uint64) *rand.Rand {
 
 }
 
-func randf[T ~float64 | ~float32](rng *rand.Rand, min, max T) T {
+func Randf[T ~float64 | ~float32](rng *rand.Rand, min, max T) T {
 	return T(rng.Float64())*(max-min) + min
+}
+
+func RandVecIn(rng *rand.Rand, rect gmath.Rect) gmath.Vec {
+	return gmath.Vec{
+		X: Randf(rng, rect.Min.X, rect.Max.X),
+		Y: Randf(rng, rect.Min.Y, rect.Max.Y),
+	}
 }
 
 func Choose[T any](rng *rand.Rand, values ...T) T {

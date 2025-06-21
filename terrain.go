@@ -11,18 +11,33 @@ import (
 	"slices"
 )
 
-type TerrainGenerator struct {
-	Noise           *fastnoiselite.FastNoiseLite
-	rng             *rand.Rand
-	world           Rect
-	debugNoiseImage *ebiten.Image
-	path            []Vec
-
-	// vertices to render
-	vertices []ebiten.Vertex
-	indices  []uint16
+type Terrain struct {
+	Rivers []River
 
 	scratch []ebiten.Vertex
+}
+
+type River struct {
+	Lines       []Line
+	OutlineGrid Grid[Line]
+	Vertices    []ebiten.Vertex
+	Indices     []uint16
+
+	Outline []Line
+}
+
+type TerrainGenerator struct {
+	noise *fastnoiselite.FastNoiseLite
+	rng   *rand.Rand
+
+	// clip rect of the world. No need to generate outside of the world
+	world Rect
+
+	// noise put into an image after generating
+	debugNoiseImage *ebiten.Image
+
+	// the generated terrain
+	terrain Terrain
 }
 
 func NewTerrainGenerator(rng *rand.Rand, worldSize Rect) *TerrainGenerator {
@@ -31,115 +46,131 @@ func NewTerrainGenerator(rng *rand.Rand, worldSize Rect) *TerrainGenerator {
 	noise.Frequency = 0.0001
 
 	return &TerrainGenerator{
-		Noise: noise,
+		noise: noise,
 		rng:   rng,
 		world: worldSize,
 	}
 }
 
-func (t *TerrainGenerator) Generate() {
-	stepSize := t.world.Width() / 100
-
-	pointsIter := walk(t.rng, t.Noise, t.world, stepSize)
-
-outer:
-	for {
-		var points []Vec
-		var insideCount int
-
-		for point := range pointsIter {
-			points = append(points, point)
-
-			if len(points) > 1000 {
-				// endless loop maybe?
-				continue outer
-			}
-
-			if t.world.Contains(point) {
-				insideCount += 1
-			}
-		}
-
-		// broken river
-		if hasLoop(t.path, stepSize*0.99) {
-			continue
-		}
-
-		// river not really touching the map
-		if insideCount < 40 {
-			continue
-		}
-
-		// keep this one
-		t.path = points
-		break
-	}
-
-	// render river to path
-	path := pathOf(t.path, false)
-
-	// and generate vertices in world space
-	t.vertices, t.indices = path.AppendVerticesAndIndicesForStroke(nil, nil, &vector.StrokeOptions{
-		Width:    randf[float32](t.rng, float32(300), 600),
-		LineJoin: vector.LineJoinRound,
-	})
-}
-
-func (t *TerrainGenerator) Draw(target *ebiten.Image, toScreen ebiten.GeoM) {
-	// bring vertices to screen
-	trVertices := TransformVertices(toScreen, t.vertices, &t.scratch)
-
+func (t *Terrain) Draw(target *ebiten.Image, toScreen ebiten.GeoM) {
 	var color colorm.ColorM
 	color.ScaleWithColor(WaterColor)
 
 	var top colorm.DrawTrianglesOptions
 	top.AntiAlias = true
 
-	colorm.DrawTriangles(target, trVertices, t.indices, whiteImage, color, &top)
+	for _, river := range t.Rivers {
+		// bring vertices to screen
+		trVertices := TransformVertices(toScreen, river.Vertices, &t.scratch)
+		colorm.DrawTriangles(target, trVertices, river.Indices, whiteImage, color, &top)
+	}
 }
 
 func (t *TerrainGenerator) DebugDraw(target *ebiten.Image, toScreen ebiten.GeoM) {
 	if t.debugNoiseImage == nil {
 		toWorld := toScreen
 		toWorld.Invert()
-		t.debugNoiseImage = noiseToImage(t.Noise, target.Bounds().Dx(), target.Bounds().Dy(), toWorld)
+
+		t.debugNoiseImage = noiseToImage(t.noise, target.Bounds().Dx(), target.Bounds().Dy(), toWorld)
 	}
 
 	target.DrawImage(t.debugNoiseImage, nil)
+}
 
-	path := pathOf(t.path, false)
+func (t *TerrainGenerator) Terrain() Terrain {
+	return t.terrain
+}
 
-	for _, pos := range t.path {
-		posScreen := TransformVec(toScreen, pos).AsVec32()
-		path.LineTo(posScreen.X, posScreen.Y)
+func (t *TerrainGenerator) GenerateRiver() {
+	var lines []Line
+
+	for {
+		// generate a valid river path
+		lines = t.riverCandidate()
+		if lines == nil {
+			continue
+		}
+
+		// check if we intersect another river
+		for _, river := range t.terrain.Rivers {
+		lines:
+			for idx, line := range lines {
+				for _, intersectionCandidate := range river.Lines {
+					intersection, ok := intersectionCandidate.Intersection(line)
+					if !ok {
+						continue
+					}
+
+					// we got an intersection with a different river. shorten the current
+					// line segment and stop the new river here
+					lines[idx].End = intersection
+					lines = lines[:idx]
+					break lines
+				}
+			}
+		}
+
+		break
 	}
 
+	// create path from river lines
+	path := pathOf(linesToVecs(lines), false)
+
+	// now we have a river, create a path from it that has a given width
+	width := Randf[float32](t.rng, float32(300), 600)
+
+	// and generate vertices in world space
 	vertices, indices := path.AppendVerticesAndIndicesForStroke(nil, nil, &vector.StrokeOptions{
-		Width:    2.0,
+		Width:    width,
 		LineJoin: vector.LineJoinRound,
 	})
 
-	{
-		// bring vertices to screen
-		trVertices := TransformVertices(toScreen, vertices, &t.scratch)
+	outline := verticesToLines(vertices, indices)
 
-		var color colorm.ColorM
-		color.ScaleWithColor(DebugColor)
-		colorm.DrawTriangles(target, trVertices, indices, whiteImage, color, nil)
+	river := River{
+		Lines:       lines,
+		Vertices:    vertices,
+		Indices:     indices,
+		Outline:     outline,
+		OutlineGrid: NewGrid(splatVec(50), outline),
 	}
 
-	{
-		// bring vertices to screen
-		trVertices := TransformVertices(toScreen, t.vertices, &t.scratch)
-
-		var color colorm.ColorM
-		color.ScaleWithColor(DebugColor)
-		colorm.DrawTriangles(target, trVertices, t.indices, whiteImage, color, nil)
-	}
+	t.terrain.Rivers = append(t.terrain.Rivers, river)
 }
 
-func (t *TerrainGenerator) Water() []Vec {
-	return t.path
+func (t *TerrainGenerator) riverCandidate() []Line {
+	stepSize := t.world.Width() / 100
+	pointsIter := walk(t.rng, t.noise, t.world, stepSize)
+
+	var points []Vec
+	var insideCount int
+
+	// collect points but limit if we reach an endless loop
+	for point := range pointsIter {
+		points = append(points, point)
+
+		if len(points) > 1000 {
+			// endless loop maybe, try a different path
+			return nil
+		}
+
+		if t.world.Contains(point) {
+			// count the points that are inside the world so we can score the river later
+			insideCount += 1
+		}
+	}
+
+	// river not really touching the map
+	if insideCount < 40 {
+		return nil
+	}
+
+	// broken river, discard this one
+	if hasLoop(points, stepSize*0.99) {
+		return nil
+	}
+
+	return vecsToLines(points)
 }
 
 func walk(rng *rand.Rand, noise *fastnoiselite.FastNoiseLite, world Rect, stepSize float64) iter.Seq[Vec] {
@@ -156,7 +187,7 @@ func walk(rng *rand.Rand, noise *fastnoiselite.FastNoiseLite, world Rect, stepSi
 		pos := rectStart(rng, outer, world)
 
 		// target the center of the screen
-		dir := pos.DirectionTo(world.Center()).Mulf(-1)
+		dir := directionTo(pos, world.Center())
 
 		lookAhead := stepSize * 10
 
@@ -210,13 +241,87 @@ func hasLoop(points []Vec, distThreshold float64) bool {
 
 func rectStart(rng *rand.Rand, outer, inner Rect) Vec {
 	for {
-		point := Vec{
-			X: randf(rng, outer.Min.X, outer.Max.X),
-			Y: randf(rng, outer.Min.Y, outer.Max.Y),
-		}
+		point := RandVecIn(rng, outer)
 
 		if outer.Contains(point) && !inner.Contains(point) {
 			return point
 		}
 	}
+}
+
+func vecsToLines(points []Vec) []Line {
+	if len(points) < 2 {
+		return nil
+	}
+
+	var lines []Line
+
+	prev := points[0]
+	for _, point := range points {
+		lines = append(lines, Line{Start: prev, End: point})
+		prev = point
+	}
+
+	return lines
+}
+
+func linesToVecs(lines []Line) []Vec {
+	if len(lines) == 0 {
+		return nil
+	}
+
+	points := []Vec{
+		lines[0].Start,
+	}
+
+	for _, line := range lines {
+		points = append(points, line.End)
+	}
+
+	return points
+}
+
+func verticesToLines(vertices []ebiten.Vertex, indices []uint16) []Line {
+	if len(indices)%3 != 0 {
+		panic("number of indices must be dividable by three")
+	}
+
+	lines := make([]Line, 0, len(indices))
+
+	for idx := 0; idx < len(indices); idx += 3 {
+		lines = append(lines, Line{
+			Start: Vec{
+				X: float64(vertices[indices[idx+0]].DstX),
+				Y: float64(vertices[indices[idx+0]].DstY),
+			},
+			End: Vec{
+				X: float64(vertices[indices[idx+1]].DstX),
+				Y: float64(vertices[indices[idx+1]].DstY),
+			},
+		})
+
+		lines = append(lines, Line{
+			Start: Vec{
+				X: float64(vertices[indices[idx+1]].DstX),
+				Y: float64(vertices[indices[idx+1]].DstY),
+			},
+			End: Vec{
+				X: float64(vertices[indices[idx+2]].DstX),
+				Y: float64(vertices[indices[idx+2]].DstY),
+			},
+		})
+
+		lines = append(lines, Line{
+			Start: Vec{
+				X: float64(vertices[indices[idx+2]].DstX),
+				Y: float64(vertices[indices[idx+2]].DstY),
+			},
+			End: Vec{
+				X: float64(vertices[indices[idx+0]].DstX),
+				Y: float64(vertices[indices[idx+0]].DstY),
+			},
+		})
+	}
+
+	return lines
 }

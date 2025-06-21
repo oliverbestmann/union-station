@@ -25,18 +25,16 @@ type PendingSegment struct {
 	AtStep                 int
 }
 
-type Segment struct {
-	Connections []*Segment
-	Start       Vec
-	End         Vec
-	Type        StreetType
+type Line struct {
+	Start Vec
+	End   Vec
 }
 
-func (s *Segment) BBox() Rect {
-	minX := min(s.Start.X, s.End.X)
-	maxX := max(s.Start.X, s.End.X)
-	minY := min(s.Start.Y, s.End.Y)
-	maxY := max(s.Start.Y, s.End.Y)
+func (l Line) BBox() Rect {
+	minX := min(l.Start.X, l.End.X)
+	maxX := max(l.Start.X, l.End.X)
+	minY := min(l.Start.Y, l.End.Y)
+	maxY := max(l.Start.Y, l.End.Y)
 
 	return Rect{
 		Min: Vec{X: minX, Y: minY},
@@ -44,12 +42,62 @@ func (s *Segment) BBox() Rect {
 	}
 }
 
+func (l Line) Intersects(other Line) bool {
+	return lineIntersect(l.Start, l.End, other.Start, other.End)
+}
+
+func (l Line) Intersection(other Line) (Vec, bool) {
+	return lineIntersection(l.Start, l.End, other.Start, other.End)
+}
+
+func (l Line) Direction() Vec {
+	return directionTo(l.Start, l.End)
+}
+
+func (l Line) Angle() Rad {
+	return l.Start.AngleToPoint(l.End)
+}
+
+func (l Line) Length() float64 {
+	return l.Start.DistanceTo(l.End)
+}
+
+func (l Line) Center() Vec {
+	return l.Start.Add(l.End).Mulf(0.5)
+}
+
+func (l Line) DistanceToVec(vec Vec) float64 {
+	distanceSqr := min(
+		l.Start.DistanceSquaredTo(vec),
+		l.End.DistanceSquaredTo(vec),
+	)
+
+	return math.Sqrt(distanceSqr)
+}
+
+func (l Line) DistanceTo(other Line) float64 {
+	distanceSqr := min(
+		l.Start.DistanceSquaredTo(other.Start),
+		l.Start.DistanceSquaredTo(other.End),
+		l.End.DistanceSquaredTo(other.Start),
+		l.End.DistanceSquaredTo(other.End),
+	)
+
+	return math.Sqrt(distanceSqr)
+}
+
+type Segment struct {
+	Line
+	Connections []*Segment
+	Type        StreetType
+}
+
 func (s *Segment) Intersects(other *Segment) bool {
-	return lineIntersect(s.Start, s.End, other.Start, other.End)
+	return s.Line.Intersects(other.Line)
 }
 
 func (s *Segment) Intersection(other *Segment) (Vec, bool) {
-	return lineIntersection(s.Start, s.End, other.Start, other.End)
+	return s.Line.Intersection(other.Line)
 }
 
 func (s *Segment) Draw(target *ebiten.Image, g ebiten.GeoM) {
@@ -71,14 +119,6 @@ func (s *Segment) Draw(target *ebiten.Image, g ebiten.GeoM) {
 	vector.StrokeLine(target, float32(x0), float32(y0), float32(x1), float32(y1), float32(strokeWidth), strokeColor, true)
 }
 
-func (s *Segment) Angle() Rad {
-	return s.Start.AngleToPoint(s.End)
-}
-
-func (s *Segment) Length() float64 {
-	return s.Start.DistanceTo(s.End)
-}
-
 func (s *Segment) IsConnected(other *Segment) bool {
 	for _, connected := range s.Connections {
 		if connected == other {
@@ -97,21 +137,6 @@ func (s *Segment) Connect(other *Segment) {
 	if !other.IsConnected(s) {
 		other.Connections = append(other.Connections, s)
 	}
-}
-
-func (s *Segment) DistanceTo(other *Segment) float64 {
-	distanceSqr := min(
-		s.Start.DistanceSquaredTo(other.Start),
-		s.Start.DistanceSquaredTo(other.End),
-		s.End.DistanceSquaredTo(other.Start),
-		s.End.DistanceSquaredTo(other.End),
-	)
-
-	return math.Sqrt(distanceSqr)
-}
-
-func (s *Segment) Center() Vec {
-	return s.Start.Add(s.End).Mulf(0.5)
 }
 
 type PendingSegmentQueue []PendingSegment
@@ -147,11 +172,11 @@ type StreetGenerator struct {
 	noise         *fastnoiselite.FastNoiseLite
 	segmentsQueue PendingSegmentQueue
 	segments      []*Segment
-	grid          Grid
-	rivers        []Vec
+	grid          Grid[*Segment]
+	terrain       Terrain
 }
 
-func NewStreetGenerator(rng *rand.Rand, clip Rect, rivers []Vec) StreetGenerator {
+func NewStreetGenerator(rng *rand.Rand, clip Rect, terrain Terrain) StreetGenerator {
 	noise := fastnoiselite.NewNoise()
 	noise = fastnoiselite.NewNoise()
 	noise.SetNoiseType(fastnoiselite.NoiseTypeValueCubic)
@@ -159,11 +184,16 @@ func NewStreetGenerator(rng *rand.Rand, clip Rect, rivers []Vec) StreetGenerator
 	noise.Frequency = 0.0008
 
 	return StreetGenerator{
-		Clip:   clip,
-		rng:    rng,
-		noise:  noise,
-		rivers: rivers,
+		Clip:    clip,
+		rng:     rng,
+		noise:   noise,
+		terrain: terrain,
+		grid:    NewGrid[*Segment](splatVec(50), nil),
 	}
+}
+
+func (gen *StreetGenerator) Grid() Grid[*Segment] {
+	return gen.grid
 }
 
 func (gen *StreetGenerator) Noise() *fastnoiselite.FastNoiseLite {
@@ -193,12 +223,30 @@ func (gen *StreetGenerator) Next() *Segment {
 	}
 
 	// kill the segment if it reaches the river
-	if gen.nearWater(segment) {
-		return nil
+	if line, _, ok := gen.intersectsWater(segment); ok {
+		if segment.Type == StreetTypeLocal {
+			// discard, small streets never cross water
+			return nil
+		}
+
+		// direction of the line we've hit
+		dirWater := line.Direction()
+
+		// direction of the street
+		dirSegment := segment.Direction()
+
+		if math.Abs(dirWater.Dot(dirSegment)) > 0.2 {
+			return nil
+		}
+
+		segment.End = segment.End.Add(dirSegment.Mulf(1500))
 	}
 
 	gen.segments = append(gen.segments, segment)
-	gen.grid.Insert(segment)
+
+	// only add to index at the end, we might still change
+	// the points
+	defer gen.grid.Insert(segment)
 
 	// max distance when to connect to existing segments
 	const connectThreshold = 30
@@ -207,7 +255,7 @@ func (gen *StreetGenerator) Next() *Segment {
 	bbox5 := segment.BBox()
 	bbox5.Min = bbox5.Min.Sub(Vec{X: connectThreshold, Y: connectThreshold})
 	bbox5.Max = bbox5.Max.Add(Vec{X: connectThreshold, Y: connectThreshold})
-	for existing := range gen.grid.Candidates(segment, bbox5) {
+	for existing := range gen.grid.Candidates(bbox5) {
 		if segment.IsConnected(existing) {
 			continue
 		}
@@ -225,7 +273,7 @@ func (gen *StreetGenerator) Next() *Segment {
 		}
 	}
 
-	for existing := range gen.grid.Candidates(segment, Rect{}) {
+	for existing := range gen.grid.Candidates(segment.BBox()) {
 		if segment.Intersects(existing) && !segment.IsConnected(existing) {
 			// hit another segment.
 			// we take the previous segment and connect it with the
@@ -326,8 +374,10 @@ func (gen *StreetGenerator) nextSegment(previousSegment PendingSegment, maxAngle
 	end := gen.nextVec(start, previousAngle, maxAngle)
 
 	newSegment := Segment{
-		Start: start,
-		End:   end,
+		Line: Line{
+			Start: start,
+			End:   end,
+		},
 	}
 
 	if previousSegment.PreviousSegment != nil {
@@ -343,8 +393,8 @@ func (gen *StreetGenerator) nextVec(pos Vec, prevAngle Rad, maxAngle Rad) Vec {
 
 	// try 8 angles and take the one with the highest population value
 	for range 8 {
-		length := randf(gen.rng, 50.0, 80.0)
-		angle := prevAngle + randf(gen.rng, -maxAngle, +maxAngle)
+		length := Randf(gen.rng, 50.0, 80.0)
+		angle := prevAngle + Randf(gen.rng, -maxAngle, +maxAngle)
 
 		// the segment offset from the start pos
 		offset := Vec{X: length}.Rotated(angle)
@@ -366,20 +416,58 @@ func (gen *StreetGenerator) PopulationAt(point Vec) float64 {
 	return populationValueAt(gen.noise, point)
 }
 
-func (gen *StreetGenerator) nearWater(segment *Segment) bool {
-	const distThreshold = 400 * 400
-
-	for _, point := range gen.rivers {
-		if segment.Start.DistanceSquaredTo(point) < distThreshold {
-			return true
-		}
-
-		if segment.End.DistanceSquaredTo(point) < distThreshold {
-			return true
+func (gen *StreetGenerator) intersectsWater(segment *Segment) (line Line, point Vec, ok bool) {
+	for _, river := range gen.terrain.Rivers {
+		for candidate := range river.OutlineGrid.Candidates(segment.BBox()) {
+			if pos, ok := candidate.Intersection(segment.Line); ok {
+				return candidate, pos, true
+			}
 		}
 	}
 
-	return false
+	return Line{}, Vec{}, false
+}
+
+func (gen *StreetGenerator) StartOne(distanceThreshold float64) {
+outer:
+	for {
+		loc := RandVecIn(gen.rng, gen.Clip)
+
+		for _, pending := range gen.segmentsQueue {
+			if pending.Point.DistanceTo(loc) < distanceThreshold {
+				continue outer
+			}
+		}
+
+		for _, river := range gen.terrain.Rivers {
+			rect := Rect{
+				Min: loc.Sub(Vec{X: distanceThreshold, Y: distanceThreshold}),
+				Max: loc.Add(Vec{X: distanceThreshold, Y: distanceThreshold}),
+			}
+
+			for candidate := range river.OutlineGrid.Candidates(rect) {
+				if candidate.DistanceToVec(loc) < distanceThreshold {
+					continue outer
+				}
+			}
+		}
+
+		// random angle
+		angle := Randf(gen.rng, Rad(0), 2*math.Pi)
+
+		// enqueue a starting point for the street generator
+		gen.Push(PendingSegment{
+			Point: loc,
+			Angle: angle - math.Pi,
+		})
+
+		gen.Push(PendingSegment{
+			Point: loc,
+			Angle: angle,
+		})
+
+		return
+	}
 }
 
 func populationValueAt(noise *fastnoiselite.FastNoiseLite, point Vec) float64 {
@@ -479,8 +567,13 @@ func noiseToImage(noise *fastnoiselite.FastNoiseLite, width, height int, toWorld
 	return img
 }
 
-type GridCell struct {
-	Segments []*Segment
+type HasBBox interface {
+	comparable
+	BBox() Rect
+}
+
+type GridCell[T HasBBox] struct {
+	Objects []T
 }
 
 type cellId struct {
@@ -488,40 +581,39 @@ type cellId struct {
 	Y int16
 }
 
-type Grid struct {
-	cells map[cellId]*GridCell
+type Grid[T HasBBox] struct {
+	cellSize Vec
+	cells    map[cellId]*GridCell[T]
 }
 
-func (g *Grid) getGridCell(id cellId, create bool) *GridCell {
-	cell := g.cells[id]
-
-	if cell == nil && create {
-		if g.cells == nil {
-			g.cells = make(map[cellId]*GridCell)
-		}
-
-		cell = &GridCell{}
-		g.cells[id] = cell
+func NewGrid[T HasBBox](cellSize Vec, objects []T) Grid[T] {
+	grid := Grid[T]{
+		cellSize: cellSize,
+		cells:    map[cellId]*GridCell[T]{},
 	}
 
-	return cell
+	for _, obj := range objects {
+		grid.Insert(obj)
+	}
+
+	return grid
 }
 
-func (g *Grid) CellsOf(bbox Rect, create bool) iter.Seq[*GridCell] {
+func (g *Grid[T]) CellsOf(bbox Rect, create bool) iter.Seq[*GridCell[T]] {
 	minId := cellId{
-		X: int16(bbox.Min.X / 50),
-		Y: int16(bbox.Min.Y / 50),
+		X: int16(bbox.Min.X / g.cellSize.X),
+		Y: int16(bbox.Min.Y / g.cellSize.Y),
 	}
 
 	maxId := cellId{
-		X: int16(math.Ceil(bbox.Max.X / 50)),
-		Y: int16(math.Ceil(bbox.Max.Y / 50)),
+		X: int16(math.Ceil(bbox.Max.X / g.cellSize.X)),
+		Y: int16(math.Ceil(bbox.Max.Y / g.cellSize.Y)),
 	}
 
-	return func(yield func(*GridCell) bool) {
+	return func(yield func(*GridCell[T]) bool) {
 		for y := minId.Y; y <= maxId.Y; y++ {
 			for x := minId.X; x <= maxId.X; x++ {
-				gridCell := g.getGridCell(cellId{X: x, Y: y}, create)
+				gridCell := g.innerCellOf(cellId{X: x, Y: y}, create)
 				if gridCell != nil {
 					if !yield(gridCell) {
 						return
@@ -533,36 +625,47 @@ func (g *Grid) CellsOf(bbox Rect, create bool) iter.Seq[*GridCell] {
 
 }
 
-func (g *Grid) Insert(segment *Segment) {
-	for cell := range g.CellsOf(segment.BBox(), true) {
-		cell.Segments = append(cell.Segments, segment)
+func (g *Grid[T]) Insert(obj T) {
+	for cell := range g.CellsOf(obj.BBox(), true) {
+		cell.Objects = append(cell.Objects, obj)
 	}
 }
 
-func (g *Grid) Candidates(query *Segment, bbox Rect) iter.Seq[*Segment] {
-	if bbox.IsZero() {
-		bbox = query.BBox()
-	}
-
-	return func(yield func(*Segment) bool) {
-		seen := make(map[*Segment]struct{})
+func (g *Grid[T]) Candidates(bbox Rect) iter.Seq[T] {
+	return func(yield func(T) bool) {
+		var seen Set[T]
 
 		for cell := range g.CellsOf(bbox, false) {
-			for _, segment := range cell.Segments {
-				_, dup := seen[segment]
+			for _, obj := range cell.Objects {
+				if seen.Has(obj) {
+					continue
+				}
 
-				if segment != query && !dup {
-					// mark as seen
-					seen[segment] = struct{}{}
+				// mark as seen
+				seen.Insert(obj)
 
-					if !yield(segment) {
-						return
-					}
+				if !yield(obj) {
+					return
 				}
 			}
 		}
 
 	}
+}
+
+func (g *Grid[T]) innerCellOf(id cellId, create bool) *GridCell[T] {
+	cell := g.cells[id]
+
+	if cell == nil && create {
+		if g.cells == nil {
+			g.cells = make(map[cellId]*GridCell[T])
+		}
+
+		cell = &GridCell[T]{}
+		g.cells[id] = cell
+	}
+
+	return cell
 }
 
 type RenderSegments struct {

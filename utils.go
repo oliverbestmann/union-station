@@ -91,19 +91,24 @@ type Promise[T any, P any] struct {
 }
 
 func AsyncTask[T any, P any](task func(yield func(P)) T) Promise[T, P] {
-	ptr := &atomic.Pointer[T]{}
+	result := &atomic.Pointer[T]{}
 	progress := &atomic.Pointer[P]{}
 
 	// spawn go-routine with task
 	go func() {
-		result := task(func(p P) {
+		value := task(func(p P) {
 			progress.Store(&p)
 		})
 
-		ptr.Store(&result)
+		result.Store(&value)
 	}()
 
-	return Promise[T, P]{started: true, result: ptr, progress: progress, seen: &atomic.Bool{}}
+	return Promise[T, P]{
+		started:  true,
+		result:   result,
+		progress: progress,
+		seen:     &atomic.Bool{},
+	}
 }
 
 func (p Promise[T, P]) Get() *T {
@@ -192,7 +197,7 @@ func Repeat[T any](n int, fn func() T) iter.Seq[T] {
 	}
 }
 
-func vecSplat(val float64) Vec {
+func splatVec(val float64) Vec {
 	return Vec{X: val, Y: val}
 }
 
@@ -251,4 +256,8 @@ func TransformVertices(tr ebiten.GeoM, vertices []ebiten.Vertex, reuse *[]ebiten
 	}
 
 	return trVertices
+}
+
+func directionTo(a, b Vec) Vec {
+	return b.Sub(a).Normalized()
 }
