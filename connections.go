@@ -3,11 +3,12 @@ package main
 import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"image/color"
 	"math"
 	"time"
 )
 
-func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two *Station, offset time.Duration, thin bool, stationColor StationColor) {
+func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two *Station, offset time.Duration, thin bool, color color.Color) {
 	// work in screen space
 	start := TransformVec(toScreen, one.Position).AsVec32()
 	end := TransformVec(toScreen, two.Position).AsVec32()
@@ -40,5 +41,5 @@ func DrawStationConnection(target *ebiten.Image, toScreen ebiten.GeoM, one, two 
 		vop.Width = 2.0
 	}
 
-	StrokePath(target, path, ebiten.GeoM{}, stationColor.Stroke, vop)
+	StrokePath(target, path, ebiten.GeoM{}, color, vop)
 }

@@ -167,6 +167,9 @@ func (g *Game) Update() error {
 		g.render = res.Render
 		g.streets = res.Image
 		g.stats = res.Stats
+
+		g.acceptedGraph.Stations = res.Stations
+		g.planningGraph.Stations = res.Stations
 	}
 
 	g.updateStreetsImage()
@@ -187,6 +190,9 @@ func (g *Game) Update() error {
 
 	// now process input
 	g.Input()
+
+	// check if we can still finish the game
+	g.updateCanWin()
 
 	return nil
 }
@@ -228,8 +234,11 @@ func (g *Game) Input() {
 	// check button inputs
 	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
 		// accept the station
-		edge, _ := g.acceptedGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
-		edge.Created = g.now
+		g.acceptedGraph.Insert(StationEdge{
+			One:     g.selectedStationOne,
+			Two:     g.selectedStationTwo,
+			Created: g.now,
+		})
 
 		// and remove it from planning, if it is still in there
 		g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
@@ -243,7 +252,12 @@ func (g *Game) Input() {
 
 	if g.btnPlanningConnection.IsClicked(g.cursorScreen, g.clicked) {
 		// hide all buttons
-		g.planningGraph.Insert(g.selectedStationOne, g.selectedStationTwo)
+		g.planningGraph.Insert(StationEdge{
+			Created: g.now,
+			One:     g.selectedStationOne,
+			Two:     g.selectedStationTwo,
+		})
+
 		g.resetInput()
 	}
 
@@ -352,7 +366,7 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 	stations := GenerateStations(g.rng, clip, villages)
 
 	yield("Calculate mst")
-	mst := computeMST(stations)
+	mst := computeMST(StationGraph{Stations: stations})
 
 	return VillageCalculation{
 		EndTime:  time.Now(),
@@ -442,27 +456,38 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 }
 
 func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {
-	if g.debug && ebiten.IsKeyPressed(ebiten.KeyS) {
-		for _, edge := range result.Mst.Edges() {
-			DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, StationColorHover)
-		}
-	}
-
 	// walk through the edges we've planned and paint them
 	for _, edge := range g.planningGraph.Edges() {
-		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, StationColorPlanned)
+		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, StationColorPlanned.Stroke)
 	}
 
 	// walk through the edges we've constructed and paint them
 	for _, edge := range g.acceptedGraph.Edges() {
 		offset := time.Now().Sub(edge.Created)
-		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, offset, false, StationColorConstructed)
+		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, offset, false, StationColorConstructed.Stroke)
+	}
+
+	if g.debug {
+		// remaining best solution
+		if ebiten.IsKeyPressed(ebiten.KeyS) {
+			mst := computeMST(g.acceptedGraph)
+			for _, edge := range mst.Edges() {
+				DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, DebugColor)
+			}
+		}
+
+		// best solution
+		if ebiten.IsKeyPressed(ebiten.KeyB) {
+			for _, edge := range result.Mst.Edges() {
+				DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, DebugColor)
+			}
+		}
 	}
 
 	// paint the edges of the currently planed route
 	if g.selectedStationOne != nil && g.selectedStationTwo != nil {
 		// we have two selected villages, draw a dummy connection between them
-		DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo, 0, false, StationColorSelected)
+		DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo, 0, false, StationColorSelected.Stroke)
 	}
 
 	// paint the stations
@@ -572,4 +597,8 @@ func (g *Game) updateTransform() {
 	// to world coordinates
 	g.toWorld = g.toScreen
 	g.toWorld.Invert()
+}
+
+func (g *Game) updateCanWin() {
+	g.acceptedGraph.Edges()
 }

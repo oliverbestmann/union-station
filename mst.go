@@ -1,58 +1,89 @@
 package main
 
-import "container/heap"
+import (
+	"sort"
+)
 
-type EdgeHeap []*StationEdge
+func computeMST(graph StationGraph) StationGraph {
+	n := len(graph.Stations)
 
-func (h EdgeHeap) Len() int           { return len(h) }
-func (h EdgeHeap) Less(i, j int) bool { return h[i].Price() < h[j].Price() }
-func (h EdgeHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-func (h *EdgeHeap) Push(x any)        { *h = append(*h, x.(*StationEdge)) }
-func (h *EdgeHeap) Pop() any {
-	old := *h
-	n := len(old)
-	edge := old[n-1]
-	*h = old[0 : n-1]
-	return edge
+	uf := NewUnionFind(graph.Stations)
+
+	// Step 1: Pre-union existing edges
+	for _, edge := range graph.Edges() {
+		uf.Union(edge.One, edge.Two)
+	}
+
+	// Step 2: Generate all possible edges
+	allEdges := make([]StationEdge, 0, n*(n-1)/2)
+
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			allEdges = append(allEdges, StationEdge{
+				One: graph.Stations[i],
+				Two: graph.Stations[j],
+			})
+		}
+	}
+
+	// Step 3: Sort all edges by weight
+	sort.Slice(allEdges, func(i, j int) bool {
+		return allEdges[i].Price() < allEdges[j].Price()
+	})
+
+	// Step 4: Add edges without forming cycles
+
+	// start with the existing graph
+	mst := graph.Clone()
+
+	for _, edge := range allEdges {
+		if uf.Union(edge.One, edge.Two) {
+			mst.Insert(edge)
+		}
+	}
+
+	return mst
 }
 
-// Prim's algorithm
-func computeMST(stations []*Station) StationGraph {
-	if len(stations) == 0 {
-		return StationGraph{}
+type UnionFind struct {
+	parent map[*Station]*Station
+}
+
+func NewUnionFind(stations []*Station) *UnionFind {
+	uf := &UnionFind{
+		parent: map[*Station]*Station{},
 	}
 
-	visited := make(map[*Station]bool)
-	edgeHeap := &EdgeHeap{}
-
-	start := stations[0]
-	visited[start] = true
-
-	// Initialize the heap with edges from the start node
-	for _, s := range stations {
-		if s != start {
-			heap.Push(edgeHeap, &StationEdge{One: start, Two: s})
-		}
+	for _, station := range stations {
+		uf.parent[station] = station
 	}
 
-	var graph StationGraph
+	return uf
+}
 
-	for len(*edgeHeap) > 0 && len(visited) < len(stations) {
-		edge := heap.Pop(edgeHeap).(*StationEdge)
-		if visited[edge.Two] {
-			continue
-		}
-
-		visited[edge.One] = true
-		graph.Insert(edge.One, edge.Two)
-
-		// Add new edges from the newly visited node
-		for _, s := range stations {
-			if !visited[s] {
-				heap.Push(edgeHeap, &StationEdge{One: edge.Two, Two: s})
-			}
-		}
+func (uf *UnionFind) Find(x *Station) *Station {
+	root := x
+	for uf.parent[root] != root {
+		root = uf.parent[root]
 	}
 
-	return graph
+	for x != uf.parent[x] {
+		parent := uf.parent[x]
+		uf.parent[x] = root
+		x = parent
+	}
+
+	return root
+}
+
+func (uf *UnionFind) Union(x, y *Station) bool {
+	rootX := uf.Find(x)
+	rootY := uf.Find(y)
+
+	if rootX == rootY {
+		return false
+	}
+
+	uf.parent[rootY] = rootX
+	return true
 }

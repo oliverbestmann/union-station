@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/heap"
 	"github.com/furui/fastnoiselite-go"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
@@ -139,38 +138,17 @@ func (s *Segment) Connect(other *Segment) {
 	}
 }
 
-type PendingSegmentQueue []PendingSegment
-
-func (p *PendingSegmentQueue) Len() int {
-	return len(*p)
-}
-
-func (p *PendingSegmentQueue) Less(i, j int) bool {
-	return (*p)[i].AtStep < (*p)[j].AtStep
-}
-
-func (p *PendingSegmentQueue) Swap(i, j int) {
-	(*p)[i], (*p)[j] = (*p)[j], (*p)[i]
-}
-
-func (p *PendingSegmentQueue) Push(x any) {
-	*p = append(*p, x.(PendingSegment))
-}
-
-func (p *PendingSegmentQueue) Pop() any {
-	old := *p
-	n := len(old)
-	item := old[n-1]
-	old[n-1] = PendingSegment{}
-	*p = old[0 : n-1]
-	return item
+func NewPendingSegmentQueue() Heap[PendingSegment] {
+	return MakeHeap[PendingSegment](func(lhs, rhs PendingSegment) bool {
+		return lhs.AtStep < rhs.AtStep
+	})
 }
 
 type StreetGenerator struct {
 	Clip          Rect
 	rng           *rand.Rand
 	noise         *fastnoiselite.FastNoiseLite
-	segmentsQueue PendingSegmentQueue
+	segmentsQueue Heap[PendingSegment]
 	segments      []*Segment
 	grid          Grid[*Segment]
 	terrain       Terrain
@@ -184,11 +162,12 @@ func NewStreetGenerator(rng *rand.Rand, clip Rect, terrain Terrain) StreetGenera
 	noise.Frequency = 0.0008
 
 	return StreetGenerator{
-		Clip:    clip,
-		rng:     rng,
-		noise:   noise,
-		terrain: terrain,
-		grid:    NewGrid[*Segment](splatVec(50), nil),
+		Clip:          clip,
+		rng:           rng,
+		noise:         noise,
+		terrain:       terrain,
+		segmentsQueue: NewPendingSegmentQueue(),
+		grid:          NewGrid[*Segment](splatVec(50), nil),
 	}
 }
 
@@ -201,16 +180,16 @@ func (gen *StreetGenerator) Noise() *fastnoiselite.FastNoiseLite {
 }
 
 func (gen *StreetGenerator) More() bool {
-	return len(gen.segmentsQueue) > 0
+	return !gen.segmentsQueue.IsEmpty()
 }
 
 func (gen *StreetGenerator) Next() *Segment {
-	if len(gen.segmentsQueue) == 0 {
+	if gen.segmentsQueue.IsEmpty() {
 		return nil
 	}
 
 	// get the next segment to start from
-	prev := heap.Pop(&gen.segmentsQueue).(PendingSegment)
+	prev := gen.segmentsQueue.Pop()
 
 	distanceToPreviousFork := prev.DistanceToPreviousFork
 
@@ -311,7 +290,7 @@ func (gen *StreetGenerator) Next() *Segment {
 			for _, sign := range []Rad{1, -1} {
 				if prob(gen.rng, 0.01) {
 					// fork a highway from here in a 90 degree angle
-					heap.Push(&gen.segmentsQueue, PendingSegment{
+					gen.segmentsQueue.Push(PendingSegment{
 						PreviousSegment: segment,
 						Point:           segment.End,
 						Angle:           segment.Angle() + DegToRad(90)*sign,
@@ -325,7 +304,7 @@ func (gen *StreetGenerator) Next() *Segment {
 		}
 	}
 
-	heap.Push(&gen.segmentsQueue, PendingSegment{
+	gen.segmentsQueue.Push(PendingSegment{
 		PreviousSegment:        segment,
 		Point:                  segment.End,
 		Angle:                  segment.Angle(),
@@ -344,7 +323,7 @@ func (gen *StreetGenerator) Next() *Segment {
 			nextAtStep = prev.AtStep + 200
 		}
 
-		heap.Push(&gen.segmentsQueue, PendingSegment{
+		gen.segmentsQueue.Push(PendingSegment{
 			PreviousSegment:        segment,
 			Point:                  segment.End,
 			Angle:                  segment.Angle() + DegToRad(90)*Rad(Choose(gen.rng, -1, +1)),
@@ -359,7 +338,7 @@ func (gen *StreetGenerator) Next() *Segment {
 }
 
 func (gen *StreetGenerator) Push(p PendingSegment) {
-	heap.Push(&gen.segmentsQueue, p)
+	gen.segmentsQueue.Push(p)
 }
 
 func (gen *StreetGenerator) Segments() []*Segment {
@@ -433,7 +412,7 @@ outer:
 	for {
 		loc := RandVecIn(gen.rng, gen.Clip)
 
-		for _, pending := range gen.segmentsQueue {
+		for pending := range gen.segmentsQueue.Values() {
 			if pending.Point.DistanceTo(loc) < distanceThreshold {
 				continue outer
 			}
