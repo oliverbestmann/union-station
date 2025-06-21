@@ -9,7 +9,7 @@ import (
 var Debug = true
 
 func ProfileCPU() func() {
-	return profile.Start(profile.CPUProfile).Stop
+	return profile.Start(profile.CPUProfile, profile.MemProfile).Stop
 }
 
 type IdleSuspend struct {

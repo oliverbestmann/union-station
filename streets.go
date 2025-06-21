@@ -156,7 +156,6 @@ type StreetGenerator struct {
 
 func NewStreetGenerator(rng *rand.Rand, clip Rect, terrain Terrain) StreetGenerator {
 	noise := fastnoiselite.NewNoise()
-	noise = fastnoiselite.NewNoise()
 	noise.SetNoiseType(fastnoiselite.NoiseTypeValueCubic)
 	noise.Seed = rng.Int32()
 	noise.Frequency = 0.0008
@@ -716,5 +715,17 @@ func (r *RenderSegments) Draw(screen *ebiten.Image, toScreen ebiten.GeoM) {
 		op := &ebiten.DrawTrianglesOptions{}
 		op.AntiAlias = true
 		screen.DrawTriangles(trVertices, indices, whiteImage, op)
+	}
+}
+
+func (r *RenderSegments) Clear() {
+	r.Dirty = false
+
+	if len(r.VerticesChunks) > 0 {
+		r.VerticesChunks = [][]ebiten.Vertex{r.VerticesChunks[0][:0]}
+	}
+
+	if len(r.IndicesChunks) > 0 {
+		r.IndicesChunks = [][]uint16{r.IndicesChunks[0][:0]}
 	}
 }

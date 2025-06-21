@@ -8,7 +8,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/oliverbestmann/union-station/assets"
 	. "github.com/quasilyte/gmath"
-	"image/color"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -210,10 +209,11 @@ func (g *Game) updateStreetsImage() {
 
 	// re-render al streets if needed
 	if dirty {
-		g.streets.Fill(color.Transparent)
+		// g.streets.Clear()
 
 		// draw the streets to the image
 		g.render.Draw(g.streets, g.toScreen)
+		g.render.Clear()
 	}
 }
 
@@ -451,7 +451,7 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 		if g.loosingIsGuaranteed {
 			center := imageSizeOf(screen).Mulf(0.5)
 			pos := Vec{X: center.X, Y: pos.Y}
-			DrawText(screen, "Winning is not possible anymore", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
+			DrawText(screen, "you've lost", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
 		}
 	}
 
