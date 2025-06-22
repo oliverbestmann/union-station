@@ -18,12 +18,12 @@ type Terrain struct {
 }
 
 type River struct {
-	Lines       []Line
-	OutlineGrid Grid[Line]
-	Vertices    []ebiten.Vertex
-	Indices     []uint16
+	Lines    []Line
+	Vertices []ebiten.Vertex
+	Indices  []uint16
 
-	Outline []Line
+	Outline     []Line
+	OutlineGrid Grid[Line]
 }
 
 type TerrainGenerator struct {

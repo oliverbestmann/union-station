@@ -30,6 +30,11 @@ var Font24 = &text.GoTextFace{
 	Size:   24.0,
 }
 
+var Font64 = &text.GoTextFace{
+	Source: Font,
+	Size:   64.0,
+}
+
 func pop[T any](values *[]T) T {
 	n := len(*values)
 	if n == 0 {
@@ -222,6 +227,7 @@ func DrawText(target *ebiten.Image, msg string, face text.Face, pos Vec, color c
 	op.PrimaryAlign = primaryAlign
 	op.SecondaryAlign = secondaryAlign
 	op.ColorScale.ScaleWithColor(color)
+	op.LineSpacing = face.Metrics().XHeight * 2.0
 	text.Draw(target, msg, face, op)
 }
 

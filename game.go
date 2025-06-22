@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -426,12 +427,15 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if g.debug {
 		g.DrawDebugText(screen)
 	}
+
+	if !g.debug {
+		pos := imageSizeOf(screen).Mulf(0.5)
+		DrawTextCenter(screen, "THIS GAME IS\nWORK IN PROGRESS", Font64, pos, rgbaOf(0x00000030))
+	}
 }
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	textSpace := 100.0
-
-	pos := Vec{X: float64(imageWidth(screen)-32) - textSpace, Y: 16}
+	pos := Vec{X: float64(imageWidth(screen) - 16), Y: 16}
 	screenSize := imageSizeOf(screen)
 
 	op := &ebiten.DrawImageOptions{}
@@ -440,27 +444,32 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 	screen.DrawImage(whiteImage, op)
 
 	if g.stats.CoinsTotal > 0 {
-		msg := fmt.Sprintf("%d", g.stats.CoinsAvailable())
-		DrawTextLeft(screen, msg, Font24, pos, HudTextColor)
-
-		// draw the coin icon in-front of the text
+		// draw the coin icon
 		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(pos.X-40, pos.Y)
+		op.GeoM.Translate(pos.X-32, pos.Y)
 		screen.DrawImage(assets.Coin(), op)
+
+		msg := fmt.Sprintf("%d", g.stats.CoinsAvailable())
+		DrawTextRight(screen, msg, Font24, pos.Add(Vec{X: -40}), HudTextColor)
 
 		if g.loosingIsGuaranteed {
 			center := imageSizeOf(screen).Mulf(0.5)
 			pos := Vec{X: center.X, Y: pos.Y}
 			DrawText(screen, "you've lost", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
 		}
+	} else {
+		pos := Vec{X: 32, Y: pos.Y}
+		msg := g.dotsByTime("City generation in progress...")
+		DrawTextLeft(screen, msg, Font24, pos, HudTextColor)
 	}
+}
 
-	// if we're busy, paint a busy indicator
-	if g.villagesAsync.Waiting() {
-		center := imageSizeOf(screen).Mulf(0.5)
-		pos := Vec{X: center.X, Y: pos.Y}
-		DrawText(screen, "please wait...", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
-	}
+func (g *Game) dotsByTime(text string) string {
+	trimmed := strings.TrimRight(text, ".")
+	diff := len(text) - len(trimmed)
+
+	cut := int(g.elapsed.Seconds()*8) % (diff + 1)
+	return text[:len(trimmed)+cut]
 }
 
 func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {
