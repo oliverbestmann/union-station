@@ -6,6 +6,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
+	"github.com/oliverbestmann/union-station/tween"
 	. "github.com/quasilyte/gmath"
 	"math"
 	"math/rand/v2"
@@ -81,6 +82,8 @@ type Game struct {
 	dialogStack         DialogStack
 	loosingIsGuaranteed bool
 	stationSize         float64
+
+	tweens []tween.Tween
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -156,11 +159,17 @@ func (g *Game) Update() error {
 
 	// calculate delta time for animations
 	now := time.Now()
-	dt := now.Sub(g.now).Seconds()
+	dt := now.Sub(g.now)
 	g.now = now
+
 	g.elapsed = now.Sub(g.startTime)
 
-	_ = dt
+	dtSecs := dt.Seconds()
+
+	// update tweens
+	g.tweens = slices.DeleteFunc(g.tweens, func(tween tween.Tween) bool {
+		return tween.Update(dt)
+	})
 
 	var newSegmentCount int
 
@@ -194,7 +203,7 @@ func (g *Game) Update() error {
 		g.stationSize = 0.0
 	}
 
-	g.stationSize = g.stationSize + dt*2
+	g.stationSize = g.stationSize + dtSecs*2
 
 	g.updateStreetsImage()
 
@@ -215,7 +224,7 @@ func (g *Game) Update() error {
 	// now process input
 	g.Input()
 
-	g.dialogStack.Update(dt)
+	g.dialogStack.Update(dtSecs)
 
 	// check if we can still finish the game
 	g.updateCanWin()
@@ -349,13 +358,35 @@ func (g *Game) Input() {
 				g.btnCancelConnection = NewButton("Cancel", CancelButtonColors)
 
 				// show the buttons near the click location
-				buttonsOrigin := g.cursorScreen.Add(Vec{X: -32, Y: -16})
+				buttonsOrigin := g.cursorScreen.Add(Vec{X: -64, Y: -24})
 
-				LayoutButtonsColumn(buttonsOrigin, 16,
+				buttons := []*Button{
 					g.btnAcceptConnection,
 					g.btnPlanningConnection,
 					g.btnCancelConnection,
-				)
+				}
+
+				LayoutButtonsColumn(buttonsOrigin, 8, buttons...)
+
+				for idx, button := range buttons {
+					delay := time.Duration(idx * 250)
+
+					g.addTween(tween.Delay(delay, tween.Concurrent(
+						&tween.Simple{
+							Ease:     ease.OutQuad,
+							Duration: 250 * time.Millisecond,
+							Target:   tween.LerpValue(&button.Position.X, button.Position.X-16, button.Position.X),
+						},
+						&tween.Simple{
+							Ease:     ease.OutQuad,
+							Duration: 250 * time.Millisecond,
+							Target:   tween.LerpValue(&button.Alpha, 0, 1),
+						},
+					)))
+
+					button.Alpha = 0
+					button.Position.X -= 16
+				}
 
 				// disable button if we do not have enough money
 				g.btnAcceptConnection.Disabled = g.stats.CoinsAvailable() < price
@@ -465,9 +496,10 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawHUD(screen)
 	g.dialogStack.Draw(screen)
 
-	g.btnAcceptConnection.Draw(screen)
-	g.btnPlanningConnection.Draw(screen)
+	// draw in opposite order
 	g.btnCancelConnection.Draw(screen)
+	g.btnPlanningConnection.Draw(screen)
+	g.btnAcceptConnection.Draw(screen)
 
 	if g.debug {
 		g.DrawDebugText(screen)
@@ -640,4 +672,12 @@ func (g *Game) updateCanWin() {
 	if mst.TotalPrice() > g.stats.CoinsTotal {
 		g.loosingIsGuaranteed = true
 	}
+}
+
+func (g *Game) addTween(tween tween.Tween) {
+	if tween.Update(0) {
+		return
+	}
+
+	g.tweens = append(g.tweens, tween)
 }
