@@ -32,12 +32,12 @@ var StationColorConstructed = StationColor{
 	Stroke: rgbaOf(0x6f8b6eff),
 }
 
-var DebugColor = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
-var BackgroundColor = rgbaOf(0xdbcfb1ff)
-var HudTextColor = rgbaOf(0xa05e5eff)
-var WaterColor = rgbaOf(0x6d838eff)
-var TooltipColor = rgbaOf(0xeee1c4ff)
-var TooltipShadowColor = rgbaOf(0xada38780)
+var DebugColor color.Color = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
+var BackgroundColor color.Color = rgbaOf(0xdbcfb1ff)
+var HudTextColor color.Color = rgbaOf(0x937b6aff)
+var WaterColor color.Color = rgbaOf(0x6d838eff)
+var TooltipColor color.Color = rgbaOf(0xeee1c4ff)
+var TooltipShadowColor color.Color = rgbaOf(0xada38780)
 
 var BuildButtonColors = ButtonColors{
 	Normal:   rgbaOf(0x6f8b6eff),

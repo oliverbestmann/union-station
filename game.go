@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/fogleman/ease"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -79,7 +80,9 @@ type Game struct {
 	stats            Stats
 	terrainGenerator *TerrainGenerator
 
+	dialogStack         DialogStack
 	loosingIsGuaranteed bool
+	stationSize         float64
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -122,6 +125,18 @@ func (g *Game) Reset(seed uint64) {
 	g.streetsGenerator = NewStreetGenerator(g.rng, g.worldSize, g.terrainGenerator.Terrain())
 
 	g.streetsGenerator.StartOne(5_000)
+
+	g.dialogStack.Push(Dialog{
+		Id:    "city-generation",
+		Modal: true,
+		Texts: []Text{
+			{
+				Face:  Font24,
+				Text:  "City generation in progress...",
+				Color: HudTextColor,
+			},
+		},
+	})
 }
 
 func (g *Game) Update() error {
@@ -172,7 +187,13 @@ func (g *Game) Update() error {
 
 		g.acceptedGraph.Stations = res.Stations
 		g.planningGraph.Stations = res.Stations
+
+		g.dialogStack.CloseById("city-generation")
+
+		g.stationSize = 0.0
 	}
+
+	g.stationSize = g.stationSize + dt*2
 
 	g.updateStreetsImage()
 
@@ -419,6 +440,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	g.drawHUD(screen)
+	g.dialogStack.Draw(screen)
 
 	g.btnAcceptConnection.Draw(screen)
 	g.btnPlanningConnection.Draw(screen)
@@ -457,14 +479,6 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 			pos := Vec{X: center.X, Y: pos.Y}
 			DrawText(screen, "you've lost", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
 		}
-	} else {
-		size := Vec{X: 384, Y: 64}
-		center := imageSizeOf(screen).Mulf(0.5)
-		pos := center.Sub(size.Mulf(0.5))
-		DrawWindow(screen, pos, size)
-
-		msg := "City generation in progress..."
-		DrawTextCenter(screen, msg, Font24, center, HudTextColor)
 	}
 }
 
@@ -512,13 +526,18 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 	}
 
 	// paint the stations
-	for _, station := range result.Stations {
+	for idx, station := range result.Stations {
 		loc := TransformVec(g.toScreen, station.Position).AsVec32()
 
 		stationColor := g.stationColorOf(station)
 
-		vector.DrawFilledCircle(screen, loc.X, loc.Y, 10, stationColor.Stroke, true)
-		vector.DrawFilledCircle(screen, loc.X, loc.Y, 8, stationColor.Fill, true)
+		f := ease.OutElastic(max(0, min(1, g.stationSize-float64(idx)*0.1)))
+
+		rOuter := float32(10 * f)
+		rInner := float32(8 * f)
+
+		vector.DrawFilledCircle(screen, loc.X, loc.Y, rOuter, stationColor.Stroke, true)
+		vector.DrawFilledCircle(screen, loc.X, loc.Y, rInner, stationColor.Fill, true)
 	}
 
 	if station := g.hoveredStation; station != nil {
@@ -527,7 +546,7 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 			FillColor: rgbaOf(0x83838320),
 		})
 
-		DrawVillageTooltip(screen, g.cursorScreen.Add(Vec{X: 16, Y: 16}), station.Village)
+		g.drawVillageTooltip(screen, g.cursorScreen, station.Village)
 	}
 
 	if station := g.selectedStationOne; station != nil {

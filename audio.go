@@ -27,11 +27,19 @@ type Audio struct {
 }
 
 func (a *Audio) PlayMusic() {
+	if a.mute {
+		return
+	}
+
 	infiniteStream := audio.NewInfiniteLoopF32(a.Music.ToStream(), int64(a.Music.Len()-4_800*bytesPerSample))
 	a.playerOf(infiniteStream).Play()
 }
 
 func (a *Audio) Play(samples MonoSamples) {
+	if a.mute {
+		return
+	}
+
 	a.playerOf(samples.ToStream()).Play()
 }
 

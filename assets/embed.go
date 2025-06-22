@@ -23,7 +23,7 @@ var button_press_ogg []byte
 //go:embed coin.png
 var coin_png []byte
 
-//go:embed Lexend-Regular.ttf
+//go:embed CoinageCapsKrugerGray.ttf
 var font_ttf []byte
 
 var Coin = sync.OnceValue(func() *ebiten.Image {

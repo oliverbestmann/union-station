@@ -223,32 +223,46 @@ func DrawVillageBounds(target *ebiten.Image, village *Village, opts DrawVillageB
 	}
 }
 
-func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
-	tPopulation := fmt.Sprintf("Population: %d", village.PopulationCount)
+func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
+	connectedText := "Not connected"
+	for _, edge := range g.acceptedGraph.Edges() {
+		if edge.One.Village == village || edge.Two.Village == village {
+			connectedText = "Connected"
+			break
+		}
+	}
 
-	// calculate the size we need to draw the text
-	bName := MeasureText(Font24, village.Name)
-	bPopulation := MeasureText(Font12, tPopulation)
-
-	// calculate the rectangle size
-	size := Vec{X: max(bName.X, bPopulation.X) + 32, Y: bName.Y + bPopulation.Y + 24}
+	dialog := Dialog{
+		Padding: splatVec(16),
+		Texts: []Text{
+			{
+				Text:  village.Name,
+				Face:  Font24,
+				Color: HudTextColor,
+			},
+			{
+				Text:  fmt.Sprintf("Population: %d", village.PopulationCount),
+				Face:  Font16,
+				Color: HudTextColor,
+			},
+			{
+				Text:  connectedText,
+				Face:  Font16,
+				Color: HudTextColor,
+			},
+		},
+	}
 
 	if int(pos.X) > imageWidth(target)*3/4 {
-		// anchor tooltip top right corner
+		// anchor tooltip top right corner of the dialog
+		size := dialog.Size()
 		pos = pos.Add(Vec{X: -size.X - 16, Y: 24})
 	} else {
 		// anchor tooltip at the top left corner
 		pos = pos.Add(Vec{X: 16, Y: 24})
 	}
 
-	DrawWindow(target, pos.Sub(Vec{X: 16, Y: 8}), size)
-
-	// draw header line
-	DrawTextLeft(target, village.Name, Font24, pos, rgbaOf(0xa05e5eff))
-
-	// draw population
-	pos.Y += 32
-	DrawTextLeft(target, tPopulation, Font12, pos, rgbaOf(0xa05e5eff))
+	dialog.DrawAt(target, pos)
 }
 
 func DrawWindow(target *ebiten.Image, pos Vec, size Vec) {

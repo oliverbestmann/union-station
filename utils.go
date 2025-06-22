@@ -222,6 +222,10 @@ func imageWidth(img *ebiten.Image) int {
 }
 
 func DrawText(target *ebiten.Image, msg string, face text.Face, pos Vec, color color.Color, primaryAlign, secondaryAlign text.Align) {
+	if color == nil {
+		color = DebugColor
+	}
+
 	op := &text.DrawOptions{}
 	op.GeoM.Translate(pos.X, pos.Y)
 	op.PrimaryAlign = primaryAlign
