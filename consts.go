@@ -39,6 +39,8 @@ var WaterColor color.Color = rgbaOf(0x6d838eff)
 var TooltipColor color.Color = rgbaOf(0xeee1c4ff)
 var TooltipShadowColor color.Color = rgbaOf(0xada38780)
 
+var HudPlannedRectangleColor = StationColorPlanned.Stroke
+
 var BuildButtonColors = ButtonColors{
 	Normal:   rgbaOf(0x6f8b6eff),
 	Hover:    rgbaOf(0x87a985ff),

@@ -7,7 +7,9 @@ import (
 )
 
 type DialogStack struct {
-	dialogs []Dialog
+	dialogs     []Dialog
+	modalAlpha  float64
+	initialized bool
 }
 
 func (st *DialogStack) Close() {
@@ -27,10 +29,45 @@ func (st *DialogStack) Push(dialog Dialog) {
 	st.dialogs = append(st.dialogs, dialog)
 }
 
-func (st *DialogStack) Draw(screen *ebiten.Image) {
+func (st *DialogStack) Clear() {
+	st.dialogs = nil
+}
+
+func (st *DialogStack) Update(dt float64) {
 	if len(st.dialogs) > 0 {
 		dialog := &st.dialogs[len(st.dialogs)-1]
-		dialog.Draw(screen)
+
+		if dialog.Modal {
+			st.modalAlpha = min(1, st.modalAlpha+8*dt)
+
+			if !st.initialized {
+				st.modalAlpha = 1
+			}
+
+		} else {
+			st.modalAlpha = max(0, st.modalAlpha-4*dt)
+		}
+	} else {
+		// no dialog, decrease alpha
+		st.modalAlpha = max(0, st.modalAlpha-4*dt)
+	}
+
+	st.initialized = true
+}
+
+func (st *DialogStack) Draw(target *ebiten.Image) {
+	if st.modalAlpha > 0 {
+		screenSize := imageSizeOf(target)
+		op := &ebiten.DrawImageOptions{}
+		op.ColorScale.ScaleWithColor(rgbaOf(0xada387ff))
+		op.ColorScale.ScaleAlpha(float32(0.2 * st.modalAlpha))
+		op.GeoM.Scale(screenSize.X, screenSize.Y)
+		target.DrawImage(whiteImage, op)
+	}
+
+	if len(st.dialogs) > 0 {
+		dialog := &st.dialogs[len(st.dialogs)-1]
+		dialog.Draw(target)
 	}
 }
 
@@ -56,14 +93,6 @@ func (d *Dialog) Draw(target *ebiten.Image) {
 
 func (d *Dialog) DrawAt(target *ebiten.Image, pos Vec) {
 	size := d.Size()
-
-	if d.Modal {
-		screenSize := imageSizeOf(target)
-		op := &ebiten.DrawImageOptions{}
-		op.ColorScale.ScaleWithColor(rgbaOf(0x00000010))
-		op.GeoM.Scale(screenSize.X, screenSize.Y)
-		target.DrawImage(whiteImage, op)
-	}
 
 	// draw the background
 	DrawWindow(target, pos, size)

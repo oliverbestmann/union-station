@@ -32,6 +32,7 @@ func main() {
 			buttonHover := DecodeAudio(&idle, assets.ButtonHover())
 
 			return Audio{
+				mute:        true,
 				Music:       music,
 				ButtonPress: buttonPress,
 				ButtonHover: buttonHover,
@@ -53,6 +54,7 @@ func main() {
 	ebiten.SetWindowSize(screenWidth*windowScale, screenHeight*windowScale)
 	ebiten.SetWindowTitle("Union Station")
 	ebiten.SetVsyncEnabled(true)
+	ebiten.SetTPS(ebiten.SyncWithFPS)
 	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	// Call ebiten.RunGame to start your game loop.

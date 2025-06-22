@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+        version="1.1"
+        width="256"
+        height="256"
+        viewBox="0 0 256 256"
+        xml:space="preserve"
+        id="svg2"
+        sodipodi:docname="coin-planned.svg"
+        inkscape:export-filename="coin.png"
+        inkscape:export-xdpi="12"
+        inkscape:export-ydpi="12"
+        inkscape:version="1.4.2 (ebf0e940d0, 2025-05-08)"
+        xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+        xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+        xmlns="http://www.w3.org/2000/svg"
+><defs
+   id="defs2" /><sodipodi:namedview
+   id="namedview2"
+   pagecolor="#ffffff"
+   bordercolor="#000000"
+   borderopacity="0.25"
+   inkscape:showpageshadow="2"
+   inkscape:pageopacity="0.0"
+   inkscape:pagecheckerboard="0"
+   inkscape:deskcolor="#d1d1d1"
+   inkscape:zoom="3.5898438"
+   inkscape:cx="104.73993"
+   inkscape:cy="118.94668"
+   inkscape:window-width="3840"
+   inkscape:window-height="2091"
+   inkscape:window-x="0"
+   inkscape:window-y="0"
+   inkscape:window-maximized="1"
+   inkscape:current-layer="svg2" />
+<g
+   style="stroke: none; stroke-width: 0; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: none; fill-rule: nonzero; opacity: 1;"
+   transform="translate(1.4065934065934016 1.4065934065934016) scale(2.81 2.81)"
+   id="g2">
+	<circle
+   cx="45"
+   cy="45"
+   r="45"
+   style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(255,200,67); fill-rule: nonzero; opacity: 1;"
+   transform="  matrix(1 0 0 1 0 0) "
+   id="circle1" />
+	<circle
+   cx="45"
+   cy="45"
+   r="35"
+   style="stroke: none; stroke-width: 1; stroke-dasharray: none; stroke-linecap: butt; stroke-linejoin: miter; stroke-miterlimit: 10; fill: rgb(211,135,0); fill-rule: nonzero; opacity: 1;"
+   transform="  matrix(1 0 0 1 0 0) "
+   id="circle2" />
+
+</g>
+<text
+   xml:space="preserve"
+   style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:162.782px;line-height:0.7;font-family:FreeSerif;-inkscape-font-specification:'FreeSerif Bold';text-align:start;letter-spacing:0px;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#ffc843;fill-opacity:1;stroke-width:106.898"
+   x="87.002403"
+   y="182.87703"
+   id="text1"><tspan
+     sodipodi:role="line"
+     id="tspan1"
+     x="87.002403"
+     y="182.87703"
+     style="stroke-width:106.898">?</tspan></text></svg>

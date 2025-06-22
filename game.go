@@ -5,9 +5,7 @@ import (
 	"github.com/fogleman/ease"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
-	"github.com/oliverbestmann/union-station/assets"
 	. "github.com/quasilyte/gmath"
 	"math"
 	"math/rand/v2"
@@ -101,6 +99,7 @@ func (g *Game) Reset(seed uint64) {
 		audio:        g.audio,
 		screenWidth:  g.screenWidth,
 		screenHeight: g.screenHeight,
+		dialogStack:  g.dialogStack,
 	}
 
 	g.startTime = time.Now()
@@ -125,6 +124,8 @@ func (g *Game) Reset(seed uint64) {
 	g.streetsGenerator = NewStreetGenerator(g.rng, g.worldSize, g.terrainGenerator.Terrain())
 
 	g.streetsGenerator.StartOne(5_000)
+
+	g.dialogStack.Clear()
 
 	g.dialogStack.Push(Dialog{
 		Id:    "city-generation",
@@ -214,6 +215,8 @@ func (g *Game) Update() error {
 	// now process input
 	g.Input()
 
+	g.dialogStack.Update(dt)
+
 	// check if we can still finish the game
 	g.updateCanWin()
 
@@ -266,6 +269,13 @@ func (g *Game) Input() {
 
 		// and remove it from planning, if it is still in there
 		g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
+
+		g.stats.StationsConnected = 0
+		for _, station := range g.acceptedGraph.Stations {
+			if g.acceptedGraph.HasConnections(station) {
+				g.stats.StationsConnected += 1
+			}
+		}
 
 		g.resetInput()
 	}
@@ -401,7 +411,8 @@ func (g *Game) computeVillages(yield func(string)) VillageCalculation {
 		Mst:      mst,
 		Stats: Stats{
 			// calculate the amount of money the player should have available
-			CoinsTotal: Coins(math.Ceil(float64(mst.TotalPrice())*1.05/10) * 10),
+			CoinsTotal:    Coins(math.Ceil(float64(mst.TotalPrice())*1.05/10) * 10),
+			StationsTotal: len(stations),
 		},
 
 		RNGCheck: g.rng.Int(),
@@ -453,32 +464,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if !g.debug {
 		pos := imageSizeOf(screen).Mulf(0.5)
 		DrawTextCenter(screen, "THIS GAME IS\nWORK IN PROGRESS", Font64, pos, rgbaOf(0x00000030))
-	}
-}
-
-func (g *Game) drawHUD(screen *ebiten.Image) {
-	pos := Vec{X: float64(imageWidth(screen) - 16), Y: 16}
-	screenSize := imageSizeOf(screen)
-
-	op := &ebiten.DrawImageOptions{}
-	op.ColorScale.ScaleWithColor(rgbaOf(0xffffff40))
-	op.GeoM.Scale(screenSize.X, 64)
-	screen.DrawImage(whiteImage, op)
-
-	if g.stats.CoinsTotal > 0 {
-		// draw the coin icon
-		op := &ebiten.DrawImageOptions{}
-		op.GeoM.Translate(pos.X-32, pos.Y)
-		screen.DrawImage(assets.Coin(), op)
-
-		msg := fmt.Sprintf("%d", g.stats.CoinsAvailable())
-		DrawTextRight(screen, msg, Font24, pos.Add(Vec{X: -40}), HudTextColor)
-
-		if g.loosingIsGuaranteed {
-			center := imageSizeOf(screen).Mulf(0.5)
-			pos := Vec{X: center.X, Y: pos.Y}
-			DrawText(screen, "you've lost", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
-		}
 	}
 }
 

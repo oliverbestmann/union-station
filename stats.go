@@ -15,6 +15,9 @@ type Stats struct {
 	CoinsTotal   Coins
 	CoinsSpent   Coins
 	CoinsPlanned Coins
+
+	StationsTotal     int
+	StationsConnected int
 }
 
 func (s *Stats) CoinsAvailable() Coins {
