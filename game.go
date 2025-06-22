@@ -430,6 +430,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// draw background & streets
 	screen.DrawImage(g.streets, nil)
 
+	if !g.debug {
+		pos := imageSizeOf(screen).Mulf(0.5)
+		DrawTextCenter(screen, "THIS GAME IS\nWORK IN PROGRESS", Font64, pos, rgbaOf(0x00000030))
+	}
+
 	if g.debug {
 		if ebiten.IsKeyPressed(ebiten.KeyN) {
 			if g.noise == nil {
@@ -459,11 +464,6 @@ func (g *Game) Draw(screen *ebiten.Image) {
 
 	if g.debug {
 		g.DrawDebugText(screen)
-	}
-
-	if !g.debug {
-		pos := imageSizeOf(screen).Mulf(0.5)
-		DrawTextCenter(screen, "THIS GAME IS\nWORK IN PROGRESS", Font64, pos, rgbaOf(0x00000030))
 	}
 }
 
