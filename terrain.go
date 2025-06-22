@@ -132,7 +132,7 @@ func (t *TerrainGenerator) GenerateRiver() {
 		Vertices:    vertices,
 		Indices:     indices,
 		Outline:     outline,
-		OutlineGrid: NewGrid(splatVec(50), outline),
+		OutlineGrid: NewGrid(vecSplat(50), outline),
 	}
 
 	t.terrain.Rivers = append(t.terrain.Rivers, river)

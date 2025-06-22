@@ -166,7 +166,7 @@ func NewStreetGenerator(rng *rand.Rand, clip Rect, terrain Terrain) StreetGenera
 		noise:         noise,
 		terrain:       terrain,
 		segmentsQueue: NewPendingSegmentQueue(),
-		grid:          NewGrid[*Segment](splatVec(50), nil),
+		grid:          NewGrid[*Segment](vecSplat(50), nil),
 	}
 }
 

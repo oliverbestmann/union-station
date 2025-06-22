@@ -344,11 +344,18 @@ func (g *Game) Input() {
 				price := priceOf(g.selectedStationOne, g.selectedStationTwo)
 				acceptText := fmt.Sprintf("Build (%s)", price)
 
+				g.btnAcceptConnection = NewButton(acceptText, BuildButtonColors)
+				g.btnPlanningConnection = NewButton("Plan", PlanButtonColors)
+				g.btnCancelConnection = NewButton("Cancel", CancelButtonColors)
+
 				// show the buttons near the click location
-				buttonVec := g.cursorScreen.Add(Vec{X: -32, Y: -16})
-				g.btnAcceptConnection = NewButton(acceptText, buttonVec, BuildButtonColors)
-				g.btnPlanningConnection = NewButton("Plan", buttonVec.Add(Vec{Y: 32 + 8}), PlanButtonColors)
-				g.btnCancelConnection = NewButton("Cancel", buttonVec.Add(Vec{Y: 2 * (32 + 8)}), CancelButtonColors)
+				buttonsOrigin := g.cursorScreen.Add(Vec{X: -32, Y: -16})
+
+				LayoutButtonsColumn(buttonsOrigin, 16,
+					g.btnAcceptConnection,
+					g.btnPlanningConnection,
+					g.btnCancelConnection,
+				)
 
 				// disable button if we do not have enough money
 				g.btnAcceptConnection.Disabled = g.stats.CoinsAvailable() < price
@@ -530,8 +537,6 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 			ToScreen:  g.toScreen,
 			FillColor: rgbaOf(0x83838320),
 		})
-
-		g.drawVillageTooltip(screen, g.cursorScreen, station.Village)
 	}
 
 	if station := g.selectedStationOne; station != nil {
@@ -550,6 +555,10 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 			StrokeColor: rgbaOf(0xb089abff),
 			StrokeWidth: 2,
 		})
+	}
+
+	if station := g.hoveredStation; station != nil {
+		g.drawVillageTooltip(screen, g.cursorScreen, station.Village)
 	}
 
 }
@@ -576,7 +585,7 @@ func (g *Game) stationColorOf(station *Station) StationColor {
 }
 
 func (g *Game) DrawDebugText(screen *ebiten.Image) {
-	pos := splatVec(32)
+	pos := vecSplat(32)
 	t := fmt.Sprintf("%1.1f fps, seed %d", ebiten.ActualFPS(), g.seed)
 	DrawTextLeft(screen, t, Font16, pos, DebugColor)
 

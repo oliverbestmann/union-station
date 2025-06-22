@@ -106,7 +106,7 @@ func (d *Dialog) paddingWithDefaultValue() Vec {
 		return d.Padding
 	}
 
-	return splatVec(24)
+	return vecSplat(24)
 }
 
 func (d *Dialog) Size() Vec {

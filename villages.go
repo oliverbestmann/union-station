@@ -233,7 +233,7 @@ func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Villag
 	}
 
 	dialog := Dialog{
-		Padding: splatVec(16),
+		Padding: vecSplat(16),
 		Texts: []Text{
 			{
 				Text:  village.Name,
@@ -268,10 +268,10 @@ func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Villag
 func DrawWindow(target *ebiten.Image, pos Vec, size Vec) {
 	// shadow
 	{
-		pos := pos.Add(splatVec(4))
+		pos := pos.Add(vecSplat(4))
 
 		var cm colorm.ColorM
-		cm.ScaleWithColor(TooltipShadowColor)
+		cm.ScaleWithColor(ShadowColor)
 
 		var op colorm.DrawImageOptions
 		op.GeoM.Scale(size.X, size.Y)

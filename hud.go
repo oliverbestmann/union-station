@@ -11,24 +11,24 @@ import (
 )
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	pos := Vec{X: float64(imageWidth(screen) - 16), Y: 16}
-	screenSize := imageSizeOf(screen)
+	if g.stats.CoinsTotal == 0 {
+		// villages not calculated, do not show hud
+		return
+	}
 
-	op := &ebiten.DrawImageOptions{}
-	op.ColorScale.ScaleWithColor(rgbaOf(0xffffff40))
-	op.GeoM.Scale(screenSize.X, 64)
-	screen.DrawImage(whiteImage, op)
+	// hud position we start to draw at
+	pos := Vec{X: imageSizeOf(screen).X - 16, Y: 16}
 
 	if g.stats.CoinsTotal > 0 {
 		msg := fmt.Sprintf("Budget: %d", g.stats.CoinsAvailable())
-		g.drawRectangleWithCoin(screen, &pos, msg, HudTextColor, assets.Coin())
+		g.hudRectangleWithIcon(screen, &pos, msg, HudTextColor, assets.Coin())
 
 		if g.stats.CoinsPlanned > 0 {
 			// add some space between the rectangles
 			pos.X -= 16
 
 			msg := fmt.Sprintf("Planned: %d", g.stats.CoinsPlanned)
-			g.drawRectangleWithCoin(screen, &pos, msg, HudPlannedRectangleColor, assets.PlannedCoin())
+			g.hudRectangleWithIcon(screen, &pos, msg, HudPlannedRectangleColor, assets.PlannedCoin())
 		}
 
 		if g.stats.StationsConnected > 0 {
@@ -36,12 +36,12 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 			pos.X -= 16
 
 			msg := fmt.Sprintf("Connected %d of %d", g.stats.StationsConnected, g.stats.StationsTotal)
-			g.drawRectangleWithCoin(screen, &pos, msg, HudTextColor, nil)
+			g.hudRectangleWithIcon(screen, &pos, msg, HudTextColor, nil)
 		}
 	}
 }
 
-func (g *Game) drawRectangleWithCoin(target *ebiten.Image, pos *Vec, msg string, rectangleColor color.Color, icon *ebiten.Image) {
+func (g *Game) hudRectangleWithIcon(target *ebiten.Image, pos *Vec, msg string, rectangleColor color.Color, icon *ebiten.Image) {
 	textWidth := MeasureText(Font24, msg).X
 
 	var iconSize Vec
@@ -50,9 +50,15 @@ func (g *Game) drawRectangleWithCoin(target *ebiten.Image, pos *Vec, msg string,
 	}
 
 	// 16px padding, 8px gap, icon size
-	rectangleSize := Vec{X: textWidth + 8 + iconSize.X + 16*2, Y: 48}
-	rectanglePos := Vec{X: pos.X - rectangleSize.X, Y: pos.Y - 8}
-	DrawRoundRect(target, rectanglePos, rectangleSize, rectangleColor)
+	rSize := Vec{X: textWidth + 8 + iconSize.X + 16*2, Y: 48}
+	rPos := Vec{X: pos.X - rSize.X, Y: pos.Y - 8}
+
+	// draw a small shadow
+	shadow := rPos.Add(vecSplat(2))
+	DrawRoundRect(target, shadow, rSize, ShadowColor)
+
+	// draw the rectangle
+	DrawRoundRect(target, rPos, rSize, rectangleColor)
 
 	// padding within the rectangle
 	pos.X -= 16
@@ -75,13 +81,13 @@ func (g *Game) drawRectangleWithCoin(target *ebiten.Image, pos *Vec, msg string,
 	pos.X -= 16
 }
 
-func DrawRoundRect(screen *ebiten.Image, rectanglePos Vec, rectangleSize Vec, color color.Color) {
+func DrawRoundRect(target *ebiten.Image, rectanglePos Vec, rectangleSize Vec, color color.Color) {
 	rrVertices, rrIndices := RoundedRectangle(rectanglePos, rectangleSize, 8)
 
 	c := colorm.ColorM{}
 	c.ScaleWithColor(color)
 
-	colorm.DrawTriangles(screen, rrVertices, rrIndices, whiteImage, c, &colorm.DrawTrianglesOptions{
+	colorm.DrawTriangles(target, rrVertices, rrIndices, whiteImage, c, &colorm.DrawTrianglesOptions{
 		AntiAlias: true,
 	})
 }

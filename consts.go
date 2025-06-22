@@ -37,7 +37,7 @@ var BackgroundColor color.Color = rgbaOf(0xdbcfb1ff)
 var HudTextColor color.Color = rgbaOf(0x937b6aff)
 var WaterColor color.Color = rgbaOf(0x6d838eff)
 var TooltipColor color.Color = rgbaOf(0xeee1c4ff)
-var TooltipShadowColor color.Color = rgbaOf(0xada38780)
+var ShadowColor color.Color = rgbaOf(0xada38780)
 
 var HudPlannedRectangleColor = StationColorPlanned.Stroke
 

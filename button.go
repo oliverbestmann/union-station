@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"image/color"
 )
@@ -17,19 +16,15 @@ type Button struct {
 	Disabled bool
 	Colors   ButtonColors
 	Text     string
-	Rect     Rect
+	Position Vec
+	Size     Vec
 	hover    bool
 }
 
-func NewButton(text string, loc Vec, colors ButtonColors) *Button {
-	rect := Rect{
-		Min: loc,
-		Max: loc.Add(Vec{X: 128, Y: 32}),
-	}
-
+func NewButton(text string, colors ButtonColors) *Button {
 	button := &Button{
 		Colors: colors,
-		Rect:   rect,
+		Size:   Vec{X: 192, Y: 48},
 		Text:   text,
 	}
 
@@ -41,7 +36,8 @@ func (b *Button) Hover(loc Vec) bool {
 		return false
 	}
 
-	hover := b.Rect.Contains(loc)
+	rect := Rect{Min: b.Position, Max: b.Position.Add(b.Size)}
+	hover := rect.Contains(loc)
 
 	b.hover = hover && !b.Disabled
 	return hover
@@ -68,12 +64,23 @@ func (b *Button) Draw(target *ebiten.Image) {
 		fillColor = b.Colors.Hover
 	}
 
+	// draw a shadow for the rectangle
+	DrawRoundRect(target, b.Position.Add(vecSplat(4)), b.Size, ShadowColor)
+
 	// draw the rectangle
-	loc := b.Rect.Min.AsVec32()
-	width := float32(b.Rect.Width())
-	height := float32(b.Rect.Height())
-	vector.DrawFilledRect(target, loc.X, loc.Y, width, height, fillColor, true)
+	hoverOffset := vecSplat(iff(b.hover, 2.0, 0))
+	DrawRoundRect(target, b.Position.Add(hoverOffset), b.Size, fillColor)
 
 	// draw the text
-	DrawTextCenter(target, b.Text, Font16, b.Rect.Center(), color.White)
+	pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset))
+	DrawTextCenter(target, b.Text, Font24, pos, BackgroundColor)
+}
+
+func LayoutButtonsColumn(origin Vec, gap float64, buttons ...*Button) {
+	pos := origin
+
+	for _, button := range buttons {
+		button.Position = pos
+		pos.Y += button.Size.Y + gap
+	}
 }

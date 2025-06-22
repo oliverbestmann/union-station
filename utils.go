@@ -202,7 +202,7 @@ func Repeat[T any](n int, fn func() T) iter.Seq[T] {
 	}
 }
 
-func splatVec(val float64) Vec {
+func vecSplat(val float64) Vec {
 	return Vec{X: val, Y: val}
 }
 
@@ -270,4 +270,12 @@ func TransformVertices(tr ebiten.GeoM, vertices []ebiten.Vertex, reuse *[]ebiten
 
 func directionTo(a, b Vec) Vec {
 	return b.Sub(a).Normalized()
+}
+
+func iff[T any](cond bool, a, b T) T {
+	if cond {
+		return a
+	} else {
+		return b
+	}
 }
