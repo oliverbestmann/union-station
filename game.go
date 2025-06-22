@@ -458,9 +458,13 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 			DrawText(screen, "you've lost", Font24, pos, HudTextColor, text.AlignCenter, text.AlignStart)
 		}
 	} else {
-		pos := Vec{X: 32, Y: pos.Y}
-		msg := g.dotsByTime("City generation in progress...")
-		DrawTextLeft(screen, msg, Font24, pos, HudTextColor)
+		size := Vec{X: 384, Y: 64}
+		center := imageSizeOf(screen).Mulf(0.5)
+		pos := center.Sub(size.Mulf(0.5))
+		DrawWindow(screen, pos, size)
+
+		msg := "City generation in progress..."
+		DrawTextCenter(screen, msg, Font24, center, HudTextColor)
 	}
 }
 

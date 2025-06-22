@@ -241,34 +241,7 @@ func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
 		pos = pos.Add(Vec{X: 16, Y: 24})
 	}
 
-	// draw tooltip rect & shadow
-	{
-		pos := pos.Sub(Vec{X: 16, Y: 8})
-
-		// shadow
-		{
-			pos := pos.Add(splatVec(4))
-
-			var cm colorm.ColorM
-			cm.ScaleWithColor(TooltipShadowColor)
-
-			var op colorm.DrawImageOptions
-			op.GeoM.Scale(size.X, size.Y)
-			op.GeoM.Translate(pos.X, pos.Y)
-			colorm.DrawImage(target, whiteImage, cm, &op)
-		}
-
-		// tooltip itself
-		{
-			var cm colorm.ColorM
-			cm.ScaleWithColor(TooltipColor)
-
-			var op colorm.DrawImageOptions
-			op.GeoM.Scale(size.X, size.Y)
-			op.GeoM.Translate(pos.X, pos.Y)
-			colorm.DrawImage(target, whiteImage, cm, &op)
-		}
-	}
+	DrawWindow(target, pos.Sub(Vec{X: 16, Y: 8}), size)
 
 	// draw header line
 	DrawTextLeft(target, village.Name, Font24, pos, rgbaOf(0xa05e5eff))
@@ -276,6 +249,32 @@ func DrawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
 	// draw population
 	pos.Y += 32
 	DrawTextLeft(target, tPopulation, Font12, pos, rgbaOf(0xa05e5eff))
+}
+
+func DrawWindow(target *ebiten.Image, pos Vec, size Vec) {
+	// shadow
+	{
+		pos := pos.Add(splatVec(4))
+
+		var cm colorm.ColorM
+		cm.ScaleWithColor(TooltipShadowColor)
+
+		var op colorm.DrawImageOptions
+		op.GeoM.Scale(size.X, size.Y)
+		op.GeoM.Translate(pos.X, pos.Y)
+		colorm.DrawImage(target, whiteImage, cm, &op)
+	}
+
+	// tooltip itself
+	{
+		var cm colorm.ColorM
+		cm.ScaleWithColor(TooltipColor)
+
+		var op colorm.DrawImageOptions
+		op.GeoM.Scale(size.X, size.Y)
+		op.GeoM.Translate(pos.X, pos.Y)
+		colorm.DrawImage(target, whiteImage, cm, &op)
+	}
 }
 
 func pathOf(points []Vec, close bool) vector.Path {
