@@ -109,8 +109,9 @@ type Stream interface {
 	Length() int64
 }
 
-func DecodeAudio(idle *IdleSuspend, stream Stream) Samples {
-	samples := make([]byte, 0, max(1024, stream.Length()))
+func DecodeAudio(idle *IdleSuspend, stream Stream, yield func(float64)) Samples {
+	totalSize := stream.Length()
+	samples := make([]byte, 0, max(1024, totalSize))
 
 	// ~50ms worth of audio data
 	buf := make([]byte, stream.SampleRate()/20*bytesPerSample)
@@ -127,6 +128,10 @@ func DecodeAudio(idle *IdleSuspend, stream Stream) Samples {
 
 		case err != nil:
 			panic(err)
+		}
+
+		if yield != nil {
+			yield(float64(len(samples)) / float64(totalSize))
 		}
 
 		idle.MaybeSuspend()

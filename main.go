@@ -35,17 +35,16 @@ func main() {
 
 			var decodedSongs []Samples
 			for idx := range songs {
-				yield(fmt.Sprintf("decoding music %d of %d", idx+1, len(songs)))
-
-				song := DecodeAudio(&idle, songs[idx])
+				desc := fmt.Sprintf("decoding music %d of %d", idx+1, len(songs))
+				song := DecodeAudio(&idle, songs[idx], progressYield(yield, desc))
 				decodedSongs = append(decodedSongs, song)
 			}
 
 			yield("button-press")
-			buttonPress := DecodeAudio(&idle, assets.ButtonPress())
+			buttonPress := DecodeAudio(&idle, assets.ButtonPress(), nil)
 
 			yield("button-hover")
-			buttonHover := DecodeAudio(&idle, assets.ButtonHover())
+			buttonHover := DecodeAudio(&idle, assets.ButtonHover(), nil)
 
 			return Audio{
 				Songs:       decodedSongs,
@@ -79,5 +78,11 @@ func main() {
 	// Call ebiten.RunGame to start your game loop.
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
+	}
+}
+
+func progressYield(yield func(string), desc string) func(float64) {
+	return func(f float64) {
+		yield(fmt.Sprintf("%s: %d%%", desc, int(f*100)))
 	}
 }
