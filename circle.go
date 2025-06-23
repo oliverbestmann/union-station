@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"image/color"
@@ -27,9 +26,15 @@ func DrawFillCircle(target *ebiten.Image, center Vec, radius float64, c color.Co
 
 	vertices := TransformVertices(tr, circleVertices, &circleScratch)
 
-	var cm colorm.ColorM
-	cm.ScaleWithColor(c)
+	r, g, b, a := toFloatRGBA(c)
+	for idx := range vertices {
+		vertices[idx].ColorR = float32(r)
+		vertices[idx].ColorG = float32(g)
+		vertices[idx].ColorB = float32(b)
+		vertices[idx].ColorA = float32(a)
 
-	op := &colorm.DrawTrianglesOptions{AntiAlias: true}
-	colorm.DrawTriangles(target, vertices, circleIndices, whiteImage, cm, op)
+	}
+
+	op := &ebiten.DrawTrianglesOptions{AntiAlias: true}
+	target.DrawTriangles(vertices, circleIndices, whiteImage, op)
 }

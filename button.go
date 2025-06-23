@@ -87,18 +87,24 @@ func LayoutButtonsColumn(origin Vec, gap float64, buttons ...*Button) {
 	}
 }
 
-func scaleColorWithAlpha(c color.Color, alpha float64) color.Color {
-	r, g, b, a := c.RGBA()
+func toFloatRGBA(c color.Color) (r float64, g float64, b float64, a float64) {
+	ir, ig, ib, ia := c.RGBA()
 
-	rf := float64(r) / 0xffff * alpha
-	gf := float64(g) / 0xffff * alpha
-	bf := float64(b) / 0xffff * alpha
-	af := float64(a) / 0xffff * alpha
+	r = float64(ir) / 0xffff
+	g = float64(ig) / 0xffff
+	b = float64(ib) / 0xffff
+	a = float64(ia) / 0xffff
+
+	return
+}
+
+func scaleColorWithAlpha(c color.Color, alpha float64) color.Color {
+	r, g, b, a := toFloatRGBA(c)
 
 	return color.RGBA64{
-		R: uint16(rf * 0xffff),
-		G: uint16(gf * 0xffff),
-		B: uint16(bf * 0xffff),
-		A: uint16(af * 0xffff),
+		R: uint16(r * alpha * 0xffff),
+		G: uint16(g * alpha * 0xffff),
+		B: uint16(b * alpha * 0xffff),
+		A: uint16(a * alpha * 0xffff),
 	}
 }
