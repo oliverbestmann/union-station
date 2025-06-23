@@ -1,5 +1,32 @@
 <!DOCTYPE html>
+
+<style>
+    html, body {
+        padding: 0;
+        margin: 0;
+
+        background: black;
+        color: #dbcfb1;
+
+        font-family: serif;
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    #Loader {
+        display: grid;
+        place-content: center;
+        height: 100dvh;
+        width: 100dvw;
+    }
+</style>
+
+<div id="Loader">
+    Loading game&hellip;
+</div>
+
 <script src="wasm_exec.js"></script>
+
 <script>
     // setup polyfill for requestIdleCallback
     if (!window.requestIdleCallback) {
@@ -18,8 +45,55 @@
         };
     }
 
+    const observer = new MutationObserver(events => {
+        for (const event of events) {
+            for (const node of event.addedNodes) {
+                if (node.nodeName.toLowerCase() === "canvas") {
+                    document.querySelector("#Loader").remove();
+                    observer.disconnect();
+                }
+            }
+        }
+    });
+
+    observer.observe(document.body, {childList: true});
+
+    const response = fetch("unionstation.wasm").then(response => {
+        let loaded = 0
+        const size = response.headers.get('Content-Length') | 0;
+
+        const loader = document.querySelector("#Loader");
+
+        const progress = new TransformStream({
+            transform(chunk, controller) {
+                loaded += chunk.length;
+                controller.enqueue(chunk);
+
+                if (size > 0) {
+                    loader.innerHTML = "Loading game&hellip; " + ((loaded / 1024) | 0) + "kb out of " + ((size / 1024) | 0) + "kb";
+                }
+            }
+        });
+
+        const body = response.body.pipeThrough(progress);
+
+        const patched = new Response(body, {
+            status: response.status,
+            statusText: response.statusText,
+        });
+
+        // Make sure to copy the headers!
+        // Wasm is very picky with it's headers and it will fail to compile if they are not
+        // specified correctly.
+        for (var pair of response.headers.entries()) {
+            patched.headers.set(pair[0], pair[1]);
+        }
+
+        return patched;
+    });
+
     const go = new Go();
-    WebAssembly.instantiateStreaming(fetch("unionstation.wasm"), go.importObject).then(result => {
+    WebAssembly.instantiateStreaming(response, go.importObject).then(result => {
         go.run(result.instance);
     });
 </script>

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
 	"github.com/oliverbestmann/union-station/assets"
 	"log"
 	"time"
@@ -22,11 +24,19 @@ func main() {
 		Promise: AsyncTask(func(yield func(string)) Audio {
 			var idle IdleSuspend
 
-			yield("music (song 1)")
-			song1 := DecodeAudio(&idle, assets.Song1())
+			yield("downloading music")
+			songs := []*vorbis.Stream{
+				assets.Song1(),
+				assets.Song2(),
+			}
 
-			yield("music (song 2)")
-			song2 := DecodeAudio(&idle, assets.Song2())
+			var decodedSongs []Samples
+			for idx := range songs {
+				yield(fmt.Sprintf("decoding music %d of %d", idx+1, len(songs)))
+
+				song := DecodeAudio(&idle, songs[idx])
+				decodedSongs = append(decodedSongs, song)
+			}
 
 			yield("button-press")
 			buttonPress := DecodeAudio(&idle, assets.ButtonPress())
@@ -35,7 +45,7 @@ func main() {
 			buttonHover := DecodeAudio(&idle, assets.ButtonHover())
 
 			return Audio{
-				Songs:       []Samples{song1, song2},
+				Songs:       decodedSongs,
 				ButtonPress: buttonPress,
 				ButtonHover: buttonHover,
 			}

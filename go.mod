@@ -1,6 +1,6 @@
 module github.com/oliverbestmann/union-station
 
-go 1.23.9
+go 1.24.3
 
 require (
 	github.com/fogleman/ease v0.0.0-20170301025033-8da417bf1776
