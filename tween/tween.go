@@ -6,7 +6,25 @@ import (
 	"time"
 )
 
-type TweenTarget func(f float64, elapsed, duration time.Duration)
+type Tweens struct {
+	tweens []Tween
+}
+
+func (t *Tweens) Add(tween Tween) {
+	if tween.Update(0) {
+		return
+	}
+
+	t.tweens = append(t.tweens, tween)
+}
+
+func (t *Tweens) Update(dt time.Duration) {
+	t.tweens = slices.DeleteFunc(t.tweens, func(tween Tween) bool {
+		return tween.Update(dt)
+	})
+}
+
+type Target func(f float64, elapsed, duration time.Duration)
 
 type Tween interface {
 	Update(dt time.Duration) (done bool)
@@ -14,7 +32,7 @@ type Tween interface {
 
 type Simple struct {
 	Duration time.Duration
-	Target   TweenTarget
+	Target   Target
 	Ease     func(t float64) float64
 
 	elapsed time.Duration
@@ -75,7 +93,7 @@ func Concurrent(tweens ...Tween) Tween {
 	return &tweensConcurrent{tweens: tweens}
 }
 
-func LerpValue(target *float64, from, to float64) TweenTarget {
+func LerpValue(target *float64, from, to float64) Target {
 	return func(f float64, _, _ time.Duration) {
 		*target = gmath.Lerp(from, to, f)
 	}

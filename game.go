@@ -63,7 +63,7 @@ type Game struct {
 	hoveredConnection  *StationEdge
 	selectedConnection *StationEdge
 
-	clicked      bool
+	cursor       CursorState
 	cursorWorld  Vec
 	cursorScreen Vec
 
@@ -85,7 +85,7 @@ type Game struct {
 	loosingIsGuaranteed bool
 	stationSize         float64
 
-	tweens []tween.Tween
+	tweens tween.Tweens
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -168,10 +168,7 @@ func (g *Game) Update() error {
 
 	dtSecs := dt.Seconds()
 
-	// update tweens
-	g.tweens = slices.DeleteFunc(g.tweens, func(tween tween.Tween) bool {
-		return tween.Update(dt)
-	})
+	g.tweens.Update(dt)
 
 	var newSegmentCount int
 
@@ -210,16 +207,14 @@ func (g *Game) Update() error {
 	g.updateStreetsImage()
 
 	// get click information
-	g.cursorScreen, g.clicked = Clicked()
-	if !g.clicked {
-		g.cursorScreen = CursorPosition()
-	}
+	g.cursor = Cursor()
+	g.cursorScreen = g.cursor.Position
 
 	// derive screen cursor position
 	g.cursorWorld = TransformVec(g.toWorld, g.cursorScreen)
 
 	// play sound if click was done
-	if g.clicked {
+	if g.cursor.JustPressed {
 		g.audio.Play(g.audio.ButtonPress)
 	}
 
@@ -265,11 +260,11 @@ func (g *Game) Input() {
 	var inputIntercepted bool
 
 	//goland:noinspection GoDfaConstantCondition
-	inputIntercepted = g.btnAcceptConnection.Hover(g.cursorScreen) || inputIntercepted
-	inputIntercepted = g.btnPlanningConnection.Hover(g.cursorScreen) || inputIntercepted
+	inputIntercepted = g.btnAcceptConnection.Hover(g.cursor) || inputIntercepted
+	inputIntercepted = g.btnPlanningConnection.Hover(g.cursor) || inputIntercepted
 
 	// check button inputs
-	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
+	if g.btnAcceptConnection.IsClicked(g.cursor) {
 		// accept the station
 		g.acceptedGraph.Insert(StationEdge{
 			One:     g.selectedStationOne,
@@ -294,7 +289,7 @@ func (g *Game) Input() {
 	g.stats.CoinsSpent = g.acceptedGraph.TotalPrice()
 	g.stats.CoinsPlanned = g.planningGraph.TotalPrice()
 
-	if g.btnPlanningConnection.IsClicked(g.cursorScreen, g.clicked) {
+	if g.btnPlanningConnection.IsClicked(g.cursor) {
 		if g.planningGraph.Has(g.selectedStationOne, g.selectedStationTwo) {
 			// was already planed, remove it from the graph
 			g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
@@ -368,7 +363,7 @@ func (g *Game) Input() {
 			currentStation = nil
 		}
 
-		if g.clicked {
+		if g.cursor.JustPressed {
 			var twoSelected = false
 
 			switch {
@@ -424,7 +419,7 @@ func (g *Game) Input() {
 				for idx, button := range buttons {
 					delay := time.Duration(idx * 250)
 
-					g.addTween(tween.Delay(delay, tween.Concurrent(
+					g.tweens.Add(tween.Delay(delay, tween.Concurrent(
 						&tween.Simple{
 							Ease:     ease.OutQuad,
 							Duration: 250 * time.Millisecond,
@@ -759,12 +754,4 @@ func (g *Game) updateCanWin() {
 	if mst.TotalPrice() > g.stats.CoinsTotal {
 		g.loosingIsGuaranteed = true
 	}
-}
-
-func (g *Game) addTween(tween tween.Tween) {
-	if tween.Update(0) {
-		return
-	}
-
-	g.tweens = append(g.tweens, tween)
 }

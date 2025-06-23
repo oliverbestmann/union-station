@@ -5,47 +5,54 @@ import (
 	"runtime"
 )
 
+type LoadingScreen interface {
+	Update(ready bool, progress *string) (startGame bool)
+	Draw(screen *ebiten.Image)
+}
+
 type Loader[T any] struct {
-	Next    func(T) ebiten.Game
-	Promise Promise[T, string]
+	Next          func(T) ebiten.Game
+	Promise       Promise[T, string]
+	LoadingScreen LoadingScreen
 
-	loaded      bool
-	playing     bool
-	initialized bool
-	game        ebiten.Game
+	loaded       bool
+	initializing bool
+	playing      bool
+	game         ebiten.Game
 
-	screenWidth, screenHeight int
+	ScreenWidth, ScreenHeight int
 }
 
 func (l *Loader[T]) Update() error {
 	switch {
 	case l.playing:
-		l.initialized = true
 		return l.game.Update()
 
-	case l.loaded:
-		if AudioContext().IsReady() {
-			l.playing = true
-		}
-
-		if _, clicked := Clicked(); clicked {
-			l.playing = true
-		}
-
 	default:
-		if result := l.Promise.Get(); result != nil {
+		if result := l.Promise.GetOnce(); result != nil {
 			l.game = l.Next(*result)
-			l.game.Layout(l.screenWidth, l.screenHeight)
 
 			runtime.GC()
 
 			l.loaded = true
-
-			if AudioContext().IsReady() {
-				// directly jump to playing as fast as possible
-				l.playing = true
-			}
 		}
+
+		// update the loading screen
+		done := l.LoadingScreen.Update(l.loaded, l.Promise.Status())
+
+		if l.loaded && done {
+			// game has loaded and the loading screen reported that it is done,
+			// switch into playing state
+			l.playing = true
+
+			// layout is guaranteed to be called once before
+			// the first call to Update
+			l.game.Layout(l.ScreenWidth, l.ScreenHeight)
+
+			// and initialize the actual game
+			return l.game.Update()
+		}
+
 	}
 
 	return nil
@@ -53,34 +60,18 @@ func (l *Loader[T]) Update() error {
 
 func (l *Loader[T]) Draw(screen *ebiten.Image) {
 	switch {
-	case l.initialized:
+	case l.playing:
 		l.game.Draw(screen)
 
-	case l.loaded:
-		l.drawText(screen, "click anywhere to start")
-
 	default:
-		desc := "loading..."
-		if status := l.Promise.Status(); status != nil {
-			desc = "loading: " + *status + "..."
-		}
-
-		l.drawText(screen, desc)
+		l.LoadingScreen.Draw(screen)
 	}
 }
 
-func (l *Loader[T]) drawText(screen *ebiten.Image, t string) {
-	center := imageSizeOf(screen).Mulf(0.5)
-	DrawTextCenter(screen, t, Font24, center, BackgroundColor)
-}
-
 func (l *Loader[T]) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	l.screenWidth = outsideWidth
-	l.screenHeight = outsideHeight
-
 	if l.playing {
 		return l.game.Layout(outsideWidth, outsideHeight)
 	}
 
-	return outsideWidth, outsideHeight
+	return l.ScreenWidth, l.ScreenHeight
 }

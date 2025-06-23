@@ -39,20 +39,27 @@ var WaterColor color.Color = rgbaOf(0x6d838eff)
 var TooltipColor color.Color = rgbaOf(0xeee1c4ff)
 var ShadowColor color.Color = rgbaOf(0xada38780)
 
+var LightTextColor color.Color = rgbaOf(0xdbcfb1ff)
+
 var HudPlannedRectangleColor = StationColorPlanned.Stroke
+
+var StartGameButtonColors = ButtonColors{
+	Normal: color.Transparent,
+	Hover:  scaleColorWithAlpha(rgbaOf(0x6f8b6eff), 0.25),
+	Text:   LightTextColor,
+}
 
 var BuildButtonColors = ButtonColors{
 	Normal:   rgbaOf(0x6f8b6eff),
 	Hover:    rgbaOf(0x87a985ff),
 	Disabled: rgbaOf(0xa05e5eff),
+	Text:     LightTextColor,
+	Shadow:   ShadowColor,
 }
 
 var PlanButtonColors = ButtonColors{
 	Normal: StationColorPlanned.Stroke,
 	Hover:  StationColorPlanned.Fill,
-}
-
-var CancelButtonColors = ButtonColors{
-	Normal: rgbaOf(0x838383ff),
-	Hover:  rgbaOf(0xa0a0a0ff),
+	Text:   LightTextColor,
+	Shadow: ShadowColor,
 }

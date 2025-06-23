@@ -112,14 +112,13 @@ type Stream interface {
 func DecodeAudio(idle *IdleSuspend, stream Stream) Samples {
 	samples := make([]byte, 0, max(1024, stream.Length()))
 
-	// ~100ms worth of audio data
-	buf := make([]byte, stream.SampleRate()/10*bytesPerSample)
+	// ~50ms worth of audio data
+	buf := make([]byte, stream.SampleRate()/20*bytesPerSample)
 
 	for {
 		n, err := io.ReadFull(stream, buf)
 		if n > 0 {
-			buf = buf[:n]
-			samples = append(samples, buf...)
+			samples = append(samples, buf[:n]...)
 		}
 
 		switch {

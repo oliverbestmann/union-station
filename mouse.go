@@ -8,31 +8,42 @@ import (
 
 var touchIds []ebiten.TouchID
 
-func Clicked() (Vec, bool) {
-	// re-use touchId buffer
-	touchIds = inpututil.AppendJustPressedTouchIDs(touchIds[:0])
-	for _, touchId := range touchIds {
-		touchX, touchY := ebiten.TouchPosition(touchId)
-		return intToVec(touchX, touchY), true
-	}
-
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		mouseX, mouseY := ebiten.CursorPosition()
-		return intToVec(mouseX, mouseY), true
-	}
-
-	return Vec{}, false
+type CursorState struct {
+	Position     Vec
+	JustPressed  bool
+	JustReleased bool
 }
 
-func CursorPosition() Vec {
+func Cursor() CursorState {
+	// re-use touchId buffer
 	touchIds = ebiten.AppendTouchIDs(touchIds[:0])
 	for _, touchId := range touchIds {
-		touchX, touchY := ebiten.TouchPosition(touchId)
-		return intToVec(touchX, touchY)
+		// check if this one was just pressed or released
+		pressed := inpututil.TouchPressDuration(touchId) == 0
+		released := inpututil.IsTouchJustReleased(touchId)
+
+		// calculate position
+		pos := intToVec(ebiten.TouchPosition(touchId))
+
+		return CursorState{
+			Position:     pos,
+			JustPressed:  pressed,
+			JustReleased: released,
+		}
 	}
 
-	mouseX, mouseY := ebiten.CursorPosition()
-	return intToVec(mouseX, mouseY)
+	// check if mouse was just pressed or released
+	pressed := inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft)
+	released := inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft)
+
+	// get mouse position
+	pos := intToVec(ebiten.CursorPosition())
+
+	return CursorState{
+		Position:     pos,
+		JustPressed:  pressed,
+		JustReleased: released,
+	}
 }
 
 func intToVec(x, y int) Vec {

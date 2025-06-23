@@ -20,6 +20,9 @@ func main() {
 	screenWidth, screenHeight := 800, 480
 
 	game := &Loader[Audio]{
+		ScreenWidth:  screenWidth * renderScale,
+		ScreenHeight: screenHeight * renderScale,
+
 		// load audio task
 		Promise: AsyncTask(func(yield func(string)) Audio {
 			var idle IdleSuspend
@@ -50,6 +53,10 @@ func main() {
 				ButtonHover: buttonHover,
 			}
 		}),
+
+		LoadingScreen: &TheLoadingScreen{
+			now: TimeOrigin,
+		},
 
 		Next: func(audio Audio) ebiten.Game {
 			return &Game{

@@ -9,7 +9,9 @@ import (
 type ButtonColors struct {
 	Normal   color.Color
 	Hover    color.Color
+	Text     color.Color
 	Disabled color.Color
+	Shadow   color.Color
 }
 
 type Button struct {
@@ -20,6 +22,7 @@ type Button struct {
 	Alpha    float64
 	Disabled bool
 	hover    bool
+	pressed  bool
 }
 
 func NewButton(text string, colors ButtonColors) *Button {
@@ -33,24 +36,38 @@ func NewButton(text string, colors ButtonColors) *Button {
 	return button
 }
 
-func (b *Button) Hover(loc Vec) bool {
+func (b *Button) Hover(cursor CursorState) bool {
 	if b == nil {
 		return false
 	}
 
 	rect := Rect{Min: b.Position, Max: b.Position.Add(b.Size)}
-	hover := rect.Contains(loc)
+	hover := rect.Contains(cursor.Position)
 
 	b.hover = hover && !b.Disabled
 	return hover
 }
 
-func (b *Button) IsClicked(loc Vec, clicked bool) bool {
-	if b != nil && b.Disabled {
+func (b *Button) IsClicked(cursor CursorState) bool {
+	if b == nil || b.Disabled {
 		return false
 	}
 
-	return clicked && b.Hover(loc)
+	hover := b.Hover(cursor)
+
+	switch {
+	case !hover:
+		b.pressed = false
+
+	case cursor.JustPressed:
+		b.pressed = true
+
+	case b.pressed && cursor.JustReleased:
+		b.pressed = false
+		return true
+	}
+
+	return false
 }
 
 func (b *Button) Draw(target *ebiten.Image) {
@@ -66,16 +83,18 @@ func (b *Button) Draw(target *ebiten.Image) {
 		fillColor = b.Colors.Hover
 	}
 
-	// draw a shadow for the rectangle
-	DrawRoundRect(target, b.Position.Add(vecSplat(4)), b.Size, scaleColorWithAlpha(ShadowColor, b.Alpha))
+	if b.Colors.Shadow != nil {
+		// draw a shadow for the rectangle
+		DrawRoundRect(target, b.Position.Add(vecSplat(4)), b.Size, scaleColorWithAlpha(b.Colors.Shadow, b.Alpha))
+	}
 
 	// draw the rectangle
-	hoverOffset := vecSplat(iff(b.hover, 2.0, 0))
+	hoverOffset := vecSplat(iff(b.pressed, 2.0, 0))
 	DrawRoundRect(target, b.Position.Add(hoverOffset), b.Size, scaleColorWithAlpha(fillColor, b.Alpha))
 
 	// draw the text
 	pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset))
-	DrawTextCenter(target, b.Text, Font24, pos, scaleColorWithAlpha(BackgroundColor, b.Alpha))
+	DrawTextCenter(target, b.Text, Font24, pos, scaleColorWithAlpha(b.Colors.Text, b.Alpha))
 }
 
 func LayoutButtonsColumn(origin Vec, gap float64, buttons ...*Button) {

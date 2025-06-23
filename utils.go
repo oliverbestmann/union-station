@@ -173,7 +173,7 @@ func rgbaOf(rgba uint32) color.NRGBA {
 }
 
 func MeasureText(face text.Face, t string) Vec {
-	width, height := text.Measure(t, face, 0)
+	width, height := text.Measure(t, face, 2*face.Metrics().XHeight)
 	return Vec{X: width, Y: height}
 }
 
