@@ -177,19 +177,21 @@ func MeasureText(face text.Face, t string) Vec {
 	return Vec{X: width, Y: height}
 }
 
-func MaxOf[T any](values iter.Seq[T], scoreOf func(value T) float64) T {
+func MaxOf[T any](values iter.Seq[T], scoreOf func(value T) float64) (T, float64, bool) {
 	var bestScore = math.Inf(-1)
 	var bestValue T
+	var ok bool
 
 	for value := range values {
 		score := scoreOf(value)
 		if score > bestScore {
 			bestScore = score
 			bestValue = value
+			ok = true
 		}
 	}
 
-	return bestValue
+	return bestValue, bestScore, ok
 }
 
 func Repeat[T any](n int, fn func() T) iter.Seq[T] {

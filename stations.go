@@ -16,7 +16,7 @@ func GenerateStations(rng *rand.Rand, clip Rect, villages []*Village) []*Station
 	var stations []*Station
 
 	for _, village := range villages {
-		newStations := MaxOf(
+		newStations, _, _ := MaxOf(
 			Repeat(5, func() []*Station { return generateStations(rng, clip, village) }),
 			stationScore,
 		)

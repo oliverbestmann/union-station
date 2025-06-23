@@ -66,15 +66,19 @@ func (l Line) Center() Vec {
 }
 
 func (l Line) DistanceToVec(vec Vec) float64 {
-	distanceSqr := min(
-		l.Start.DistanceSquaredTo(vec),
-		l.End.DistanceSquaredTo(vec),
-	)
+	ab := l.End.Sub(l.Start)
+	ap := vec.Sub(l.Start)
 
-	return math.Sqrt(distanceSqr)
+	var t float64
+	if !ab.IsZero() {
+		t = Clamp(ap.Dot(ab)/ab.LenSquared(), 0, 1)
+	}
+
+	closest := l.Start.Add(ab.Mulf(t))
+	return closest.DistanceTo(vec)
 }
 
-func (l Line) DistanceTo(other Line) float64 {
+func (l Line) DistanceToOther(other Line) float64 {
 	distanceSqr := min(
 		l.Start.DistanceSquaredTo(other.Start),
 		l.Start.DistanceSquaredTo(other.End),

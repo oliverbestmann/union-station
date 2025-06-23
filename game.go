@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/oliverbestmann/union-station/tween"
 	. "github.com/quasilyte/gmath"
+	"image/color"
 	"math"
 	"math/rand/v2"
 	"slices"
@@ -60,6 +61,9 @@ type Game struct {
 	selectedStationOne *Station
 	selectedStationTwo *Station
 
+	hoveredConnection  *StationEdge
+	selectedConnection *StationEdge
+
 	clicked      bool
 	cursorWorld  Vec
 	cursorScreen Vec
@@ -70,7 +74,6 @@ type Game struct {
 
 	btnAcceptConnection   *Button
 	btnPlanningConnection *Button
-	btnCancelConnection   *Button
 
 	acceptedGraph StationGraph
 	planningGraph StationGraph
@@ -265,7 +268,6 @@ func (g *Game) Input() {
 	//goland:noinspection GoDfaConstantCondition
 	inputIntercepted = g.btnAcceptConnection.Hover(g.cursorScreen) || inputIntercepted
 	inputIntercepted = g.btnPlanningConnection.Hover(g.cursorScreen) || inputIntercepted
-	inputIntercepted = g.btnCancelConnection.Hover(g.cursorScreen) || inputIntercepted
 
 	// check button inputs
 	if g.btnAcceptConnection.IsClicked(g.cursorScreen, g.clicked) {
@@ -294,27 +296,50 @@ func (g *Game) Input() {
 	g.stats.CoinsPlanned = g.planningGraph.TotalPrice()
 
 	if g.btnPlanningConnection.IsClicked(g.cursorScreen, g.clicked) {
-		// hide all buttons
-		g.planningGraph.Insert(StationEdge{
-			Created: g.now,
-			One:     g.selectedStationOne,
-			Two:     g.selectedStationTwo,
-		})
+		if g.planningGraph.Has(g.selectedStationOne, g.selectedStationTwo) {
+			// was already planed, remove it from the graph
+			g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
+		} else {
+			// add it to the planning graph
+			g.planningGraph.Insert(StationEdge{
+				Created: g.now,
+				One:     g.selectedStationOne,
+				Two:     g.selectedStationTwo,
+			})
+		}
 
-		g.resetInput()
-	}
-
-	if g.btnCancelConnection.IsClicked(g.cursorScreen, g.clicked) {
-		// hide all buttons
 		g.resetInput()
 	}
 
 	var currentStation *Station
 
+	var closestConnection *StationEdge
+	var distanceToClosestConnection = math.Inf(1)
+
 	if !inputIntercepted {
+		// find the connection we are closest to
+		if g.selectedStationOne == nil && g.selectedStationTwo == nil {
+			edge, distance, ok := MaxOf(slices.Values(g.planningGraph.Edges()), func(value StationEdge) float64 {
+				line := Line{
+					Start: value.One.Position,
+					End:   value.Two.Position,
+				}
+
+				return -line.DistanceToVec(g.cursorWorld)
+			})
+
+			// need to flip it due to MaxOf/MinOf, also scale to screen space
+			distance = TransformScalar(g.toScreen, -distance)
+
+			if ok && distance < 32 {
+				closestConnection = &edge
+				distanceToClosestConnection = distance
+			}
+		}
+
 		if result := g.villagesAsync.Get(); result != nil && len(result.Stations) > 0 {
 			// get the station that is nearest to the mouse
-			station := MaxOf(slices.Values(result.Stations), func(station *Station) float64 {
+			station, _, _ := MaxOf(slices.Values(result.Stations), func(station *Station) float64 {
 				return -g.cursorWorld.DistanceSquaredTo(station.Position)
 			})
 
@@ -324,9 +349,17 @@ func (g *Game) Input() {
 			isNear := distanceToStation < 32.0
 			isNotSelected := station != g.selectedStationOne && station != g.selectedStationTwo
 
-			if isNotSelected && (isNear || station.Village.Contains(g.cursorWorld)) {
+			edgeIsCloser := distanceToClosestConnection < distanceToStation
+
+			if isNotSelected && (isNear || (!edgeIsCloser && station.Village.Contains(g.cursorWorld))) {
 				currentStation = station
 			}
+		}
+
+		if currentStation != nil {
+			// we either select a station or a connection, but not both
+			closestConnection = nil
+			distanceToClosestConnection = math.Inf(1)
 		}
 
 		noStationSelected := currentStation == nil
@@ -337,7 +370,15 @@ func (g *Game) Input() {
 		}
 
 		if g.clicked {
+			var twoSelected = false
+
 			switch {
+			case closestConnection != nil:
+				g.selectedConnection = closestConnection
+				g.selectedStationOne = closestConnection.One
+				g.selectedStationTwo = closestConnection.Two
+				twoSelected = true
+
 			case noStationSelected:
 				g.resetInput()
 
@@ -348,6 +389,17 @@ func (g *Game) Input() {
 			case g.selectedStationOne != nil && currentStation != nil && currentStation != g.selectedStationOne:
 				// select the clicked village (or nil, if none was clicked)
 				g.selectedStationTwo = currentStation
+				twoSelected = true
+			}
+
+			if twoSelected {
+				if g.selectedConnection == nil {
+					// check if we have actually a planned connection in the graph
+					edge, ok := g.planningGraph.Get(g.selectedStationOne, g.selectedStationTwo)
+					if ok {
+						g.selectedConnection = &edge
+					}
+				}
 
 				// text should include the price
 				price := priceOf(g.selectedStationOne, g.selectedStationTwo)
@@ -355,7 +407,10 @@ func (g *Game) Input() {
 
 				g.btnAcceptConnection = NewButton(acceptText, BuildButtonColors)
 				g.btnPlanningConnection = NewButton("Plan", PlanButtonColors)
-				g.btnCancelConnection = NewButton("Cancel", CancelButtonColors)
+
+				if g.selectedConnection != nil {
+					g.btnPlanningConnection.Text = "Remove"
+				}
 
 				// show the buttons near the click location
 				buttonsOrigin := g.cursorScreen.Add(Vec{X: -64, Y: -24})
@@ -363,7 +418,6 @@ func (g *Game) Input() {
 				buttons := []*Button{
 					g.btnAcceptConnection,
 					g.btnPlanningConnection,
-					g.btnCancelConnection,
 				}
 
 				LayoutButtonsColumn(buttonsOrigin, 8, buttons...)
@@ -395,19 +449,37 @@ func (g *Game) Input() {
 	}
 
 	g.hoveredStation = currentStation
+	g.hoveredConnection = closestConnection
 
 	if currentStation == g.selectedStationOne || currentStation == g.selectedStationTwo {
 		// actually, do not hover one of the selected villages
 		g.hoveredStation = nil
 	}
+
+	if g.selectedStationOne != nil && g.selectedStationTwo != nil {
+		// both are selected, do not hover anything else
+		g.hoveredStation = nil
+	}
+
+	if pointToEqual(g.hoveredConnection, g.selectedConnection) {
+		g.hoveredConnection = nil
+	}
+}
+
+func pointToEqual[T comparable](a, b *T) bool {
+	if a != nil && b != nil {
+		return *a == *b
+	}
+
+	return a == b
 }
 
 func (g *Game) resetInput() {
 	g.selectedStationOne = nil
 	g.selectedStationTwo = nil
+	g.selectedConnection = nil
 	g.btnAcceptConnection = nil
 	g.btnPlanningConnection = nil
-	g.btnCancelConnection = nil
 }
 
 func (g *Game) computeVillages(yield func(string)) VillageCalculation {
@@ -496,10 +568,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	g.drawHUD(screen)
 	g.dialogStack.Draw(screen)
 
-	// draw in opposite order
-	g.btnCancelConnection.Draw(screen)
-	g.btnPlanningConnection.Draw(screen)
 	g.btnAcceptConnection.Draw(screen)
+	g.btnPlanningConnection.Draw(screen)
 
 	if g.debug {
 		g.DrawDebugText(screen)
@@ -517,7 +587,22 @@ func (g *Game) dotsByTime(text string) string {
 func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalculation) {
 	// walk through the edges we've planned and paint them
 	for _, edge := range g.planningGraph.Edges() {
-		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, StationColorPlanned.Stroke)
+		hovered := g.hoveredConnection != nil && *g.hoveredConnection == edge
+		selected := g.selectedConnection != nil && *g.selectedConnection == edge
+
+		var c color.Color
+		switch {
+		case selected:
+			c = StationColorSelected.Stroke
+
+		case hovered:
+			c = StationColorHover.Stroke
+
+		default:
+			c = StationColorPlanned.Stroke
+		}
+
+		DrawStationConnection(screen, g.toScreen, edge.One, edge.Two, 0, true, c)
 	}
 
 	// walk through the edges we've constructed and paint them
@@ -553,15 +638,18 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 	for idx, station := range result.Stations {
 		loc := TransformVec(g.toScreen, station.Position).AsVec32()
 
-		stationColor := g.stationColorOf(station)
+		stationColor, pressed := g.stationColorOf(station)
 
 		f := ease.OutElastic(max(0, min(1, g.stationSize-float64(idx)*0.1)))
 
 		rOuter := float32(10 * f)
 		rInner := float32(8 * f)
 
-		vector.DrawFilledCircle(screen, loc.X, loc.Y, rOuter, stationColor.Stroke, true)
-		vector.DrawFilledCircle(screen, loc.X, loc.Y, rInner, stationColor.Fill, true)
+		vector.DrawFilledCircle(screen, loc.X+2, loc.Y+2, rOuter, ShadowColor, true)
+
+		offset := iff(pressed, float32(1), 0)
+		vector.DrawFilledCircle(screen, loc.X+offset, loc.Y+offset, rOuter, stationColor.Stroke, true)
+		vector.DrawFilledCircle(screen, loc.X+offset, loc.Y+offset, rInner, stationColor.Fill, true)
 	}
 
 	if station := g.hoveredStation; station != nil {
@@ -589,31 +677,31 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 		})
 	}
 
-	if station := g.hoveredStation; station != nil {
-		g.drawVillageTooltip(screen, g.cursorScreen, station.Village)
+	if g.btnAcceptConnection == nil {
+		if station := g.hoveredStation; station != nil {
+			g.drawVillageTooltip(screen, g.cursorScreen, station.Village)
+		}
 	}
-
 }
 
-func (g *Game) stationColorOf(station *Station) StationColor {
-	stationColor := StationColorIdle
-
+func (g *Game) stationColorOf(station *Station) (StationColor, bool) {
 	// if the circle is hovered, select a different color palette
 	switch {
 	case g.selectedStationOne == station, g.selectedStationTwo == station:
-		stationColor = StationColorSelected
+		return StationColorSelected, true
 
 	case g.hoveredStation == station:
-		stationColor = StationColorHover
+		return StationColorHover, true
 
 	case len(g.acceptedGraph.EdgesOf(station)) > 0:
-		stationColor = StationColorConstructed
+		return StationColorConstructed, false
 
 	case len(g.planningGraph.EdgesOf(station)) > 0:
-		stationColor = StationColorPlanned
-	}
+		return StationColorPlanned, false
 
-	return stationColor
+	default:
+		return StationColorIdle, false
+	}
 }
 
 func (g *Game) DrawDebugText(screen *ebiten.Image) {

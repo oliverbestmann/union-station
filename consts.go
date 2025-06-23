@@ -3,8 +3,8 @@ package main
 import "image/color"
 
 type StationColor struct {
-	Fill   color.NRGBA
-	Stroke color.NRGBA
+	Fill   color.Color
+	Stroke color.Color
 }
 
 var StationColorSelected = StationColor{

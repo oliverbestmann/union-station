@@ -103,7 +103,7 @@ func (idx *GridIndex) Extract(query *Segment, distThreshold float64) []*Segment 
 	// query the grid for segments within that range
 	for cell := range idx.grid.CellsOf(bbox, false) {
 		for _, segment := range cell.Objects {
-			if idx.Remaining.Has(segment) && query.DistanceTo(segment.Line) <= distThreshold {
+			if idx.Remaining.Has(segment) && query.DistanceToOther(segment.Line) <= distThreshold {
 				// add segment to the result
 				result = append(result, segment)
 

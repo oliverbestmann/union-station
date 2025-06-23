@@ -214,7 +214,7 @@ func walk(rng *rand.Rand, noise *fastnoiselite.FastNoiseLite, world Rect, stepSi
 			}
 
 			// check candidates in step direction
-			angle := MaxOf(slices.Values(angles), func(angle Rad) float64 {
+			angle, _, _ := MaxOf(slices.Values(angles), func(angle Rad) float64 {
 				pos := pos.Add(dir.Rotated(angle).Normalized().Mulf(lookAhead))
 				return noise.GetNoise2D(F(pos.X), F(pos.Y))
 			})
