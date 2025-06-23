@@ -10,7 +10,7 @@ import (
 var TimeOrigin = time.Now()
 
 func main() {
-	// defer ProfileCPU()()
+	defer ProfileCPU()()
 
 	const windowScale = 2
 	const renderScale = 2

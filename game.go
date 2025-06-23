@@ -5,7 +5,6 @@ import (
 	"github.com/fogleman/ease"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/oliverbestmann/union-station/tween"
 	. "github.com/quasilyte/gmath"
 	"image/color"
@@ -634,24 +633,6 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 		DrawStationConnection(screen, g.toScreen, g.selectedStationOne, g.selectedStationTwo, 0, false, StationColorSelected.Stroke)
 	}
 
-	// paint the stations
-	for idx, station := range result.Stations {
-		loc := TransformVec(g.toScreen, station.Position).AsVec32()
-
-		stationColor, pressed := g.stationColorOf(station)
-
-		f := ease.OutElastic(max(0, min(1, g.stationSize-float64(idx)*0.1)))
-
-		rOuter := float32(10 * f)
-		rInner := float32(8 * f)
-
-		vector.DrawFilledCircle(screen, loc.X+2, loc.Y+2, rOuter, ShadowColor, true)
-
-		offset := iff(pressed, float32(1), 0)
-		vector.DrawFilledCircle(screen, loc.X+offset, loc.Y+offset, rOuter, stationColor.Stroke, true)
-		vector.DrawFilledCircle(screen, loc.X+offset, loc.Y+offset, rInner, stationColor.Fill, true)
-	}
-
 	if station := g.hoveredStation; station != nil {
 		DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
 			ToScreen:  g.toScreen,
@@ -675,6 +656,24 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 			StrokeColor: rgbaOf(0xb089abff),
 			StrokeWidth: 2,
 		})
+	}
+
+	// paint the stations
+	for idx, station := range result.Stations {
+		loc := TransformVec(g.toScreen, station.Position)
+
+		stationColor, pressed := g.stationColorOf(station)
+
+		f := ease.OutElastic(max(0, min(1, g.stationSize-float64(idx)*0.1)))
+
+		rOuter := 10 * f
+		rInner := 8 * f
+
+		DrawFillCircle(screen, loc.Add(vecSplat(2)), rOuter, ShadowColor)
+
+		offset := vecSplat(iff(pressed, 1.0, 0))
+		DrawFillCircle(screen, loc.Add(offset), rOuter, stationColor.Stroke)
+		DrawFillCircle(screen, loc.Add(offset), rInner, stationColor.Fill)
 	}
 
 	if g.btnAcceptConnection == nil {
