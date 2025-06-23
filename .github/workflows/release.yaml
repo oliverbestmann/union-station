@@ -70,7 +70,7 @@ jobs:
 
       - name: Bundle files
         run: |
-          zip -9 union-station.zip index.html wasm_exec.js unionstation.wasm assets/song*.ogg
+          zip -r9 union-station.zip index.html wasm_exec.js unionstation.wasm assets/
 
       - name: Upload package to workflow artifacts
         uses: actions/upload-artifact@v4
