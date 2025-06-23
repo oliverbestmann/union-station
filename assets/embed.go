@@ -3,22 +3,27 @@ package assets
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"image/png"
 	_ "image/png"
+	"io"
+	"net/http"
+	"os"
+	"runtime"
 	"sync"
 )
-
-//go:embed music.ogg
-var music_ogg []byte
 
 //go:embed button_hover.ogg
 var button_hover_ogg []byte
 
 //go:embed button_press.ogg
 var button_press_ogg []byte
+
+//go:embed dummy.ogg
+var dummy_ogg []byte
 
 //go:embed coin.png
 var coin_png []byte
@@ -44,8 +49,12 @@ var Font = sync.OnceValue(func() *text.GoTextFaceSource {
 	return f
 })
 
-func Music() *vorbis.Stream {
-	return decoderOf(music_ogg)
+func Song1() *vorbis.Stream {
+	return loadStreamOf("assets/song1.ogg")
+}
+
+func Song2() *vorbis.Stream {
+	return loadStreamOf("assets/song2.ogg")
 }
 
 func ButtonHover() *vorbis.Stream {
@@ -63,4 +72,32 @@ func decoderOf(ogg []byte) *vorbis.Stream {
 	}
 
 	return s
+}
+
+func loadStreamOf(name string) *vorbis.Stream {
+	if runtime.GOOS == "js" {
+		resp, err := http.Get(name)
+		if err != nil {
+			fmt.Printf("[assets] request failed %q: %s\n", name, err)
+			return decoderOf(dummy_ogg)
+		}
+
+		defer resp.Body.Close()
+
+		buf, err := io.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Printf("[assets] failed to read %q: %s\n", name, err)
+			return decoderOf(dummy_ogg)
+		}
+
+		return decoderOf(buf)
+	}
+
+	buf, err := os.ReadFile(name)
+	if err != nil {
+		fmt.Printf("[assets] failed to load %q: %s\n", name, err)
+		return decoderOf(dummy_ogg)
+	}
+
+	return decoderOf(buf)
 }

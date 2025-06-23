@@ -2,11 +2,12 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"github.com/hajimehoshi/ebiten/v2/audio"
-	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
 	"io"
 	"slices"
 	"sync"
+	"time"
 )
 
 // bytesPerSample is the byte size for one sample (8 [bytes] = 2 [channels] * 4 [bytes] (32bit float)).
@@ -17,9 +18,9 @@ var AudioContext = sync.OnceValue(func() *audio.Context {
 })
 
 type Audio struct {
-	Music       MonoSamples
-	ButtonPress MonoSamples
-	ButtonHover MonoSamples
+	Songs       []Samples
+	ButtonPress Samples
+	ButtonHover Samples
 
 	players []*audio.Player
 
@@ -27,15 +28,35 @@ type Audio struct {
 }
 
 func (a *Audio) PlayMusic() {
-	if a.mute {
-		return
+	var readers []io.Reader
+
+	for _, samples := range a.Songs {
+		readers = append(readers, samples.ToStream())
 	}
 
-	infiniteStream := audio.NewInfiniteLoopF32(a.Music.ToStream(), int64(a.Music.Len()-4_800*bytesPerSample))
-	a.playerOf(infiniteStream).Play()
+	go func() {
+		var current *audio.Player
+		var idx int
+		for {
+			// check if we're still playing
+			time.Sleep(500 * time.Millisecond)
+
+			if !AudioContext().IsReady() {
+				continue
+			}
+
+			if current == nil || !current.IsPlaying() {
+				song := a.Songs[idx%len(a.Songs)]
+				idx += 1
+
+				current = a.playerOf(song.ToStream())
+				current.Play()
+			}
+		}
+	}()
 }
 
-func (a *Audio) Play(samples MonoSamples) {
+func (a *Audio) Play(samples Samples) {
 	if a.mute {
 		return
 	}
@@ -82,42 +103,45 @@ func (a *Audio) Cleanup() {
 	})
 }
 
-func DecodeAudio(idle *IdleSuspend, stream *vorbis.Stream) MonoSamples {
-	monoSamples := make([]byte, 0, stream.Length()/2)
+type Stream interface {
+	io.Reader
+	SampleRate() int
+	Length() int64
+}
+
+func DecodeAudio(idle *IdleSuspend, stream Stream) Samples {
+	samples := make([]byte, 0, max(1024, stream.Length()))
 
 	// ~100ms worth of audio data
 	buf := make([]byte, stream.SampleRate()/10*bytesPerSample)
 
-	remaining := stream.Length()
-	for remaining > 0 {
-		count := min(remaining, int64(len(buf)))
-
-		n, err := io.ReadFull(stream, buf[:count])
-		if err != nil {
-			panic(err)
+	for {
+		n, err := io.ReadFull(stream, buf)
+		if n > 0 {
+			buf = buf[:n]
+			samples = append(samples, buf...)
 		}
 
-		remaining -= int64(n)
+		switch {
+		case errors.Is(err, io.ErrUnexpectedEOF):
+			return Samples{buf: samples}
 
-		// copy every second sample to the samples buffer
-		for idx := 0; idx < int(count); idx += bytesPerSample {
-			monoSamples = append(monoSamples, buf[idx], buf[idx+1], buf[idx+2], buf[idx+3])
+		case err != nil:
+			panic(err)
 		}
 
 		idle.MaybeSuspend()
 	}
-
-	return MonoSamples{buf: monoSamples}
 }
 
-type MonoSamples struct {
+type Samples struct {
 	buf []byte
 }
 
-func (m MonoSamples) ToStream() io.ReadSeeker {
-	return NewStereoStream(bytes.NewReader(m.buf))
+func (m Samples) ToStream() io.ReadSeeker {
+	return bytes.NewReader(m.buf)
 }
 
-func (m MonoSamples) Len() int {
-	return len(m.buf) * 2
+func (m Samples) Len() int {
+	return len(m.buf)
 }

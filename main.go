@@ -22,8 +22,11 @@ func main() {
 		Promise: AsyncTask(func(yield func(string)) Audio {
 			var idle IdleSuspend
 
-			yield("music")
-			music := DecodeAudio(&idle, assets.Music())
+			yield("music (song 1)")
+			song1 := DecodeAudio(&idle, assets.Song1())
+
+			yield("music (song 2)")
+			song2 := DecodeAudio(&idle, assets.Song2())
 
 			yield("button-press")
 			buttonPress := DecodeAudio(&idle, assets.ButtonPress())
@@ -32,8 +35,7 @@ func main() {
 			buttonHover := DecodeAudio(&idle, assets.ButtonHover())
 
 			return Audio{
-				mute:        true,
-				Music:       music,
+				Songs:       []Samples{song1, song2},
 				ButtonPress: buttonPress,
 				ButtonHover: buttonHover,
 			}
