@@ -6,11 +6,6 @@
         margin: 0;
 
         background: black;
-        color: #dbcfb1;
-
-        font-family: serif;
-        font-size: 16px;
-        font-weight: bold;
     }
 
     #Loader {
@@ -18,11 +13,33 @@
         place-content: center;
         height: 100dvh;
         width: 100dvw;
+
+        color: #dbcfb1;
+
+        font-family: "CoinageCapsKrugerGray", serif;
+        font-size: 24px;
+        font-weight: bold;
+
+        text-align: center;
+
+        line-height: 120%;
+    }
+
+    #Progress {
+        font-size: 16px;
+    }
+
+
+    @font-face {
+        font-family: "CoinageCapsKrugerGray";
+        src: local("CoinageCapsKrugerGray"), url("assets/CoinageCapsKrugerGray.ttf") format("truetype");
+        font-display: block;
     }
 </style>
 
 <div id="Loader">
-    Loading game&hellip;
+    <div>Loading game&hellip;</div>
+    <div id="Progress">&nbsp;</div>
 </div>
 
 <script src="wasm_exec.js"></script>
@@ -60,9 +77,9 @@
 
     const response = fetch("unionstation.wasm").then(response => {
         let loaded = 0
-        const size = response.headers.get('Content-Length') | 0;
+        const size = (response.headers.get('Content-Length') ?? response.headers.get("x-goog-stored-content-length")) | 0;
 
-        const loader = document.querySelector("#Loader");
+        const progressNode = document.querySelector("#Progress");
 
         const progress = new TransformStream({
             transform(chunk, controller) {
@@ -70,7 +87,7 @@
                 controller.enqueue(chunk);
 
                 if (size > 0) {
-                    loader.innerHTML = "Loading game&hellip; " + ((loaded / 1024) | 0) + "kb out of " + ((size / 1024) | 0) + "kb";
+                    progressNode.innerText = ((loaded / 1024) | 0) + "kb out of " + ((size / 1024) | 0) + "kb";
                 }
             }
         });
