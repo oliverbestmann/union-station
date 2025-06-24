@@ -51,6 +51,10 @@ github.com/jfreymuth/vorbis v1.0.2/go.mod h1:DoftRo4AznKnShRl1GxiTFCseHr4zR9BN3T
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
 github.com/ledongthuc/pdf v0.0.0-20220302134840-0c2507a12d80/go.mod h1:imJHygn/1yfhB7XSJJKlFZKl/J+dCPAknuiaGOshXAs=
 github.com/mailru/easyjson v0.7.7/go.mod h1:xzfreul335JAWq5oZzymOObrkdz5UnU4kGfJJLY9Nlc=
+github.com/neilotoole/fifomu v0.1.2 h1:sgJhcOTlEXGVj/nS5Bb8/qV+1wgmk+KPavcNuDw0rDM=
+github.com/neilotoole/fifomu v0.1.2/go.mod h1:9di2j+xBgr+nX6IPmpwQVxKt6yzgPLk9WXEj/aLwcao=
+github.com/neilotoole/streamcache v0.3.5 h1:8YVgTcd3OpTC46zduXJE4WAhTjxQCEBHYVGDgQ6R3ss=
+github.com/neilotoole/streamcache v0.3.5/go.mod h1:yYJLcdAWI6jMeSSIfQ8vIydWxsrdAdGGNbYMXvWKV6M=
 github.com/orisano/pixelmatch v0.0.0-20220722002657-fb0b55479cde/go.mod h1:nZgzbfBr3hhjoZnS66nKrHmduYNpc34ny7RK4z5/HM0=
 github.com/pierrec/lz4/v4 v4.1.21 h1:yOVMLb6qSIDP67pl/5F7RepeKYu/VmTyEXvuMI5d9mQ=
 github.com/pierrec/lz4/v4 v4.1.21/go.mod h1:gZWDp/Ze/IJXGXf23ltt2EXimqmTUXEy0GFuRQyBid4=

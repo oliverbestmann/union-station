@@ -21,6 +21,8 @@ require (
 	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/jfreymuth/oggvorbis v1.0.5 // indirect
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
+	github.com/neilotoole/fifomu v0.1.2 // indirect
+	github.com/neilotoole/streamcache v0.3.5 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/image v0.28.0 // indirect
 	golang.org/x/sync v0.15.0 // indirect

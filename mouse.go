@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	. "github.com/quasilyte/gmath"
@@ -38,8 +37,6 @@ func Cursor() CursorState {
 	for _, touchId := range touchIds {
 		activeTouchId = touchId
 		pos := intToVec(ebiten.TouchPosition(touchId))
-
-		fmt.Println("pressed")
 
 		return CursorState{
 			Position:    pos,

@@ -210,17 +210,17 @@ func Decode(bytes []byte) (*QOA, []int16, error) {
 	return q, sampleData, nil
 }
 
-type qoaStream struct {
+type Stream struct {
 	decoder  *Decoder
 	buffered []byte
 	samples  []int16
 }
 
-func NewStream(r *Decoder) io.Reader {
-	return &qoaStream{decoder: r}
+func NewStream(r *Decoder) *Stream {
+	return &Stream{decoder: r}
 }
 
-func (q *qoaStream) Read(buf []byte) (n int, err error) {
+func (q *Stream) Read(buf []byte) (n int, err error) {
 	// only ever read an even number of bytes
 	amount := len(buf) & ^1
 	buf = buf[:amount]

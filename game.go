@@ -749,9 +749,9 @@ func (g *Game) updateTransform() {
 
 func (g *Game) updateCanWin() {
 	// calculate the mst based on the current state
-	mst := BuildMST(g.acceptedGraph)
-
-	if mst.TotalPrice() > g.stats.CoinsTotal {
-		g.loosingIsGuaranteed = true
-	}
+	//mst := BuildMST(g.acceptedGraph)
+	//
+	//if mst.TotalPrice() > g.stats.CoinsTotal {
+	//	g.loosingIsGuaranteed = true
+	//}
 }

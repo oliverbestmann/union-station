@@ -2,9 +2,12 @@ package main
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/oliverbestmann/union-station/assets"
+	"github.com/oliverbestmann/union-station/qoa"
 	"io"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -18,7 +21,7 @@ var AudioContext = sync.OnceValue(func() *audio.Context {
 })
 
 type Audio struct {
-	Songs       []Samples
+	Songs       []assets.MakeStream
 	ButtonPress Samples
 	ButtonHover Samples
 
@@ -28,12 +31,6 @@ type Audio struct {
 }
 
 func (a *Audio) PlayMusic() {
-	var readers []io.Reader
-
-	for _, samples := range a.Songs {
-		readers = append(readers, samples.ToStream())
-	}
-
 	go func() {
 		var current *audio.Player
 		var idx int
@@ -49,7 +46,13 @@ func (a *Audio) PlayMusic() {
 				song := a.Songs[idx%len(a.Songs)]
 				idx += 1
 
-				current = a.playerOf(song.ToStream())
+				stream, err := qoaStreamOf(song())
+				if err != nil {
+					fmt.Printf("Failed to open song: %s\n", err)
+					continue
+				}
+
+				current = a.playerOf(stream)
 				current.Play()
 			}
 		}
@@ -103,57 +106,91 @@ func (a *Audio) Cleanup() {
 	})
 }
 
-type Stream interface {
-	io.Reader
-	SampleRate() int
-	Length() int64
+type Samples assets.Int16Samples
+
+func (m Samples) ToStream() io.Reader {
+	return &Int16ToFloat32Reader{r: bytes.NewReader(m)}
 }
 
-func DecodeAudio(idle *IdleSuspend, stream io.Reader, yield func(float64)) Samples {
-	var totalSize int64
-
-	chunkSize := 44100 / 5 * bytesPerSample
-
-	if stream, ok := stream.(Stream); ok {
-		totalSize = stream.Length()
-		chunkSize = stream.SampleRate() / 5 * bytesPerSample
+func qoaStreamOf(r io.Reader) (io.Reader, error) {
+	dec, err := qoa.NewDecoder(r)
+	if err != nil {
+		return nil, fmt.Errorf("open qoa stream: %w", err)
 	}
 
-	samples := make([]byte, 0, max(1024, totalSize))
-
-	// ~50ms worth of audio data
-	buf := make([]byte, chunkSize)
-
-	for {
-		n, err := io.ReadFull(stream, buf)
-		if n > 0 {
-			samples = append(samples, buf[:n]...)
-		}
-
-		switch {
-		case errors.Is(err, io.ErrUnexpectedEOF):
-			return Samples{buf: samples}
-
-		case err != nil:
-			panic(err)
-		}
-
-		if yield != nil && totalSize > 0 {
-			yield(float64(len(samples)) / float64(totalSize))
-		}
-
-		idle.MaybeSuspend()
+	stream := &Int16ToFloat32Reader{
+		r: qoa.NewStream(dec),
 	}
+
+	return stream, nil
 }
 
-type Samples struct {
-	buf []byte
+type Int16ToFloat32Reader struct {
+	r        io.Reader
+	eof      bool
+	i16Buf   []byte
+	byteSize int64
 }
 
-func (m Samples) ToStream() io.ReadSeeker {
-	return bytes.NewReader(m.buf)
+func (r *Int16ToFloat32Reader) Read(buf []byte) (int, error) {
+	if r.eof && len(r.i16Buf) == 0 {
+		return 0, io.EOF
+	}
+
+	if i16LenToFill := len(buf) / 4 * 2; len(r.i16Buf) < i16LenToFill && !r.eof {
+		origLen := len(r.i16Buf)
+		if cap(r.i16Buf) < i16LenToFill {
+			r.i16Buf = append(r.i16Buf, make([]byte, i16LenToFill-origLen)...)
+		}
+
+		// Read int16 bytes.
+		n, err := r.r.Read(r.i16Buf[origLen:i16LenToFill])
+		if err != nil && err != io.EOF {
+			return 0, err
+		}
+		if err == io.EOF {
+			r.eof = true
+		}
+		r.i16Buf = r.i16Buf[:origLen+n]
+	}
+
+	// Convert int16 bytes to float32 bytes and fill buf.
+	samplesToFill := min(len(r.i16Buf)/2, len(buf)/4)
+	for i := 0; i < samplesToFill; i++ {
+		vi16l := r.i16Buf[2*i]
+		vi16h := r.i16Buf[2*i+1]
+		v := float32(int16(vi16l)|int16(vi16h)<<8) / (1 << 15)
+
+		vf32 := math.Float32bits(v)
+		buf[4*i] = byte(vf32)
+		buf[4*i+1] = byte(vf32 >> 8)
+		buf[4*i+2] = byte(vf32 >> 16)
+		buf[4*i+3] = byte(vf32 >> 24)
+	}
+
+	// Copy the remaining part for the next read.
+	copy(r.i16Buf, r.i16Buf[samplesToFill*2:])
+	r.i16Buf = r.i16Buf[:len(r.i16Buf)-samplesToFill*2]
+
+	n := samplesToFill * 4
+	if r.eof {
+		return n, io.EOF
+	}
+	return n, nil
 }
 
-func (m Samples) Len() int {
-	return len(m.buf)
+/*
+func (r *Int16ToFloat32Reader) Seek(offset int64, whence int) (int64, error) {
+	s, ok := r.r.(io.Seeker)
+	if !ok {
+		return 0, fmt.Errorf("float32: the source must be io.Seeker when seeking but not")
+	}
+	r.i16Buf = r.i16Buf[:0]
+	r.eof = false
+	n, err := s.Seek(offset/4*2, whence)
+	if err != nil {
+		return 0, err
+	}
+	return n / 2 * 4, nil
 }
+*/
