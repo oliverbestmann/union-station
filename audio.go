@@ -138,7 +138,7 @@ func DecodeAudio(idle *IdleSuspend, stream io.Reader, yield func(float64)) Sampl
 			panic(err)
 		}
 
-		if yield != nil {
+		if yield != nil && totalSize > 0 {
 			yield(float64(len(samples)) / float64(totalSize))
 		}
 

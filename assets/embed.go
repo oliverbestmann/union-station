@@ -105,23 +105,24 @@ func loadStreamOf(name string) io.ReadSeeker {
 }
 
 func qoaOf(buf []byte) io.ReadSeeker {
-	hdr, samples, err := qoa.Decode(buf)
+	decoder, err := qoa.NewDecoder(bytes.NewReader(buf))
 	if err != nil {
 		panic(err)
 	}
 
-	return &float32BytesReader{
-		r: qoa.NewReader(samples, int(hdr.Channels)),
+	return &Int16ToFloat32Reader{
+		r: qoa.NewStream(decoder),
 	}
 }
 
-type float32BytesReader struct {
-	r      io.Reader
-	eof    bool
-	i16Buf []byte
+type Int16ToFloat32Reader struct {
+	r        io.Reader
+	eof      bool
+	i16Buf   []byte
+	byteSize int64
 }
 
-func (r *float32BytesReader) Read(buf []byte) (int, error) {
+func (r *Int16ToFloat32Reader) Read(buf []byte) (int, error) {
 	if r.eof && len(r.i16Buf) == 0 {
 		return 0, io.EOF
 	}
@@ -149,6 +150,7 @@ func (r *float32BytesReader) Read(buf []byte) (int, error) {
 		vi16l := r.i16Buf[2*i]
 		vi16h := r.i16Buf[2*i+1]
 		v := float32(int16(vi16l)|int16(vi16h)<<8) / (1 << 15)
+
 		vf32 := math.Float32bits(v)
 		buf[4*i] = byte(vf32)
 		buf[4*i+1] = byte(vf32 >> 8)
@@ -167,7 +169,7 @@ func (r *float32BytesReader) Read(buf []byte) (int, error) {
 	return n, nil
 }
 
-func (r *float32BytesReader) Seek(offset int64, whence int) (int64, error) {
+func (r *Int16ToFloat32Reader) Seek(offset int64, whence int) (int64, error) {
 	s, ok := r.r.(io.Seeker)
 	if !ok {
 		return 0, fmt.Errorf("float32: the source must be io.Seeker when seeking but not")

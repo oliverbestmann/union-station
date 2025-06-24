@@ -1,8 +1,12 @@
 package qoa
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"io"
+	"unsafe"
 )
 
 // DecodeHeader decodes the QOA header and initializes the QOA struct with header information.
@@ -111,6 +115,63 @@ func (q *QOA) decodeFrame(bytes []byte, size uint, sampleData []int16, frameLen 
 	return p, nil
 }
 
+type Decoder struct {
+	r        *bufio.Reader
+	header   *QOA
+	framebuf []byte
+	samples  []int16
+}
+
+func NewDecoder(r io.Reader) (*Decoder, error) {
+	bufread := bufio.NewReaderSize(r, 32*1024)
+
+	buf, err := bufread.Peek(16)
+	if err != nil {
+		return nil, fmt.Errorf("read qoa header: %w", err)
+	}
+
+	header, err := DecodeHeader(buf[:])
+	if err != nil {
+		return nil, fmt.Errorf("parse qua header: %w", err)
+	}
+
+	// discard the header bytes. no error handling needed, we peeked 16 bytes, so
+	// we are guaranteed to be able to discard 8 bytes
+	_, _ = bufread.Discard(8)
+
+	// calculate size of one frame
+	const sliceSize = 8
+	const headerSize = 8
+	const encoderState = 16
+	frameSize := headerSize + (encoderState+sliceSize*QOASlicesPerFrame)*header.Channels
+
+	dec := &Decoder{
+		r:        bufread,
+		header:   header,
+		framebuf: make([]byte, frameSize),
+		samples:  make([]int16, QOASlicesPerFrame*QOASliceLen*header.Channels),
+	}
+
+	return dec, err
+}
+
+func (d *Decoder) AppendSamples(samples []int16) ([]int16, error) {
+	_, err := io.ReadFull(d.r, d.framebuf)
+	if err != nil {
+		return nil, fmt.Errorf("read frame: %w", err)
+	}
+
+	var sampleCount uint32
+
+	_, err = d.header.decodeFrame(d.framebuf, uint(len(d.framebuf)), d.samples, &sampleCount)
+	if err != nil {
+		return nil, fmt.Errorf("decode frame: %w", err)
+	}
+
+	samples = append(samples, d.samples[:int(sampleCount*d.header.Channels)]...)
+	return samples, nil
+}
+
 // Decode decodes the provided QOA encoded bytes and returns the QOA struct and the decoded audio sample data.
 func Decode(bytes []byte) (*QOA, []int16, error) {
 	q, err := DecodeHeader(bytes)
@@ -147,4 +208,43 @@ func Decode(bytes []byte) (*QOA, []int16, error) {
 
 	q.Samples = sampleIndex
 	return q, sampleData, nil
+}
+
+type qoaStream struct {
+	decoder  *Decoder
+	buffered []byte
+	samples  []int16
+}
+
+func NewStream(r *Decoder) io.Reader {
+	return &qoaStream{decoder: r}
+}
+
+func (q *qoaStream) Read(buf []byte) (n int, err error) {
+	// only ever read an even number of bytes
+	amount := len(buf) & ^1
+	buf = buf[:amount]
+
+	for {
+		// take some samples from the buffer if available
+		if n := min(len(buf), len(q.buffered)); n > 0 {
+			copy(buf[:n], q.buffered[:n])
+			q.buffered = q.buffered[n:]
+
+			return n, nil
+		}
+
+		// buffer is empty, decode some samples
+		q.samples, err = q.decoder.AppendSamples(q.samples[:0])
+		if err != nil {
+			return 0, fmt.Errorf("decode: %w", err)
+		}
+
+		// copy samples to buffer
+		q.buffered = append(q.buffered, bytesViewOf(q.samples)...)
+	}
+}
+
+func bytesViewOf(samples []int16) []byte {
+	return unsafe.Slice((*byte)(unsafe.Pointer(&samples[0])), len(samples)*2)
 }
