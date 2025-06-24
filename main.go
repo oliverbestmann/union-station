@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
 	"github.com/oliverbestmann/union-station/assets"
+	"io"
 	"log"
 	"time"
 )
@@ -28,7 +28,7 @@ func main() {
 			var idle IdleSuspend
 
 			yield("downloading music")
-			songs := []*vorbis.Stream{
+			songs := []io.ReadSeeker{
 				assets.Song1(),
 				assets.Song2(),
 			}

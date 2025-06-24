@@ -109,12 +109,20 @@ type Stream interface {
 	Length() int64
 }
 
-func DecodeAudio(idle *IdleSuspend, stream Stream, yield func(float64)) Samples {
-	totalSize := stream.Length()
+func DecodeAudio(idle *IdleSuspend, stream io.Reader, yield func(float64)) Samples {
+	var totalSize int64
+
+	chunkSize := 44100 / 5 * bytesPerSample
+
+	if stream, ok := stream.(Stream); ok {
+		totalSize = stream.Length()
+		chunkSize = stream.SampleRate() / 5 * bytesPerSample
+	}
+
 	samples := make([]byte, 0, max(1024, totalSize))
 
 	// ~50ms worth of audio data
-	buf := make([]byte, stream.SampleRate()/5*bytesPerSample)
+	buf := make([]byte, chunkSize)
 
 	for {
 		n, err := io.ReadFull(stream, buf)
