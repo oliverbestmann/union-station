@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	. "github.com/quasilyte/gmath"
+	"math"
 )
 
 var touchIds []ebiten.TouchID
@@ -14,21 +16,34 @@ type CursorState struct {
 	JustReleased bool
 }
 
-func Cursor() CursorState {
-	// re-use touchId buffer
-	touchIds = ebiten.AppendTouchIDs(touchIds[:0])
-	for _, touchId := range touchIds {
-		// check if this one was just pressed or released
-		pressed := inpututil.TouchPressDuration(touchId) == 0
-		released := inpututil.IsTouchJustReleased(touchId)
+var activeTouchId ebiten.TouchID = math.MinInt
+var activeTouchPosition Vec
 
-		// calculate position
-		pos := intToVec(ebiten.TouchPosition(touchId))
+func Cursor() CursorState {
+	if activeTouchId >= 0 {
+		released := inpututil.IsTouchJustReleased(activeTouchId)
+		if released {
+			activeTouchId = math.MinInt
+		} else {
+			activeTouchPosition = intToVec(ebiten.TouchPosition(activeTouchId))
+		}
 
 		return CursorState{
-			Position:     pos,
-			JustPressed:  pressed,
+			Position:     activeTouchPosition,
 			JustReleased: released,
+		}
+	}
+
+	touchIds = inpututil.AppendJustPressedTouchIDs(touchIds[:0])
+	for _, touchId := range touchIds {
+		activeTouchId = touchId
+		pos := intToVec(ebiten.TouchPosition(touchId))
+
+		fmt.Println("pressed")
+
+		return CursorState{
+			Position:    pos,
+			JustPressed: true,
 		}
 	}
 
