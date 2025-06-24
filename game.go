@@ -88,6 +88,9 @@ type Game struct {
 	profileStop func()
 
 	tweens tween.Tweens
+
+	lost bool
+	won  bool
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -141,7 +144,7 @@ func (g *Game) Reset(seed uint64) {
 			{
 				Face:  Font24,
 				Text:  "City generation in progress...",
-				Color: HudTextColor,
+				Color: DarkTextColor,
 			},
 		},
 	})
@@ -229,13 +232,18 @@ func (g *Game) Update() error {
 		g.audio.Play(g.audio.ButtonPress)
 	}
 
-	// now process input
-	g.Input()
+	modal := g.dialogStack.Update(dtSecs)
 
-	g.dialogStack.Update(dtSecs)
+	if modal {
+		g.hoveredStation = nil
+		g.hoveredConnection = nil
+	} else {
+		// now process input
+		g.Input()
+	}
 
 	// check if we can still finish the game
-	g.updateCanWin()
+	g.updateWinCondition()
 
 	return nil
 }
@@ -758,11 +766,136 @@ func (g *Game) updateTransform() {
 	g.toWorld.Invert()
 }
 
-func (g *Game) updateCanWin() {
-	// calculate the mst based on the current state
-	//mst := BuildMST(g.acceptedGraph)
-	//
-	//if mst.TotalPrice() > g.stats.CoinsTotal {
-	//	g.loosingIsGuaranteed = true
-	//}
+func (g *Game) updateWinCondition() {
+	if g.lost || g.won || len(g.acceptedGraph.Stations) == 0 {
+		return
+	}
+
+	var actionAvailable bool
+	var hasConnected bool
+	var hasUnconnected bool
+
+	// check if there is no station left that we can connect
+	// to any connected station
+outer:
+	for _, station := range g.acceptedGraph.Stations {
+		if g.acceptedGraph.HasConnections(station) {
+			hasConnected = true
+			continue
+		}
+
+		hasUnconnected = true
+
+		// station is not yet connected, check for the chepest connection to
+		// an already connected node
+		for _, other := range g.acceptedGraph.Stations {
+			if !g.acceptedGraph.HasConnections(other) {
+				continue
+			}
+
+			if priceOf(station, other) < g.stats.CoinsAvailable() {
+				// reachable
+				actionAvailable = true
+				break outer
+			}
+		}
+	}
+
+	// check if all stations are connected
+
+	// no unconnected station.
+	if !hasUnconnected {
+		// check if we have seen all stations
+		if g.allStationsConnected() {
+			// player has won
+			g.won = true
+
+			g.dialogStack.Push(Dialog{
+				Id:    "won",
+				Modal: true,
+				Texts: []Text{
+					{
+						Face:  Font24,
+						Text:  "Congratulation",
+						Color: DarkTextColor,
+					},
+
+					{
+						Face:  Font16,
+						Text:  "You have connected the countryside",
+						Color: DarkTextColor,
+					},
+				},
+
+				ButtonText: "Next",
+			})
+		}
+
+		return
+	}
+
+	// if there is no further action available, the player has lost
+	if hasConnected && !actionAvailable {
+		g.lost = true
+
+		solution := BuildMST(g.acceptedGraph)
+		missingConnections := len(solution.Edges()) - len(g.acceptedGraph.Edges())
+		missingCoins := solution.TotalPrice() - g.acceptedGraph.TotalPrice() - g.stats.CoinsAvailable()
+
+		g.dialogStack.Push(Dialog{
+			Id:    "lost",
+			Modal: true,
+			Texts: []Text{
+				{
+					Face:  Font24,
+					Text:  "We are so sorry",
+					Color: DarkTextColor,
+				},
+
+				{
+					Face:  Font16,
+					Text:  "You failed your assignment",
+					Color: DarkTextColor,
+				},
+				{
+					Face:  Font16,
+					Text:  fmt.Sprintf("You're missing %d Coins to build %d more connections", missingCoins, missingConnections),
+					Color: DarkTextColor,
+				},
+			},
+
+			ButtonText: "Next",
+		})
+
+		return
+	}
+}
+
+func (g *Game) allStationsConnected() bool {
+	graph := g.acceptedGraph
+
+	var seen Set[*Station]
+
+	queue := make([]*Station, 0, len(graph.Stations))
+
+	initial := graph.Stations[0]
+	queue = append(queue, initial)
+	seen.Insert(initial)
+
+	for idx := 0; idx < len(queue); idx++ {
+		current := queue[idx]
+
+		for _, edge := range graph.EdgesOf(current) {
+			other := edge.OtherStation(current)
+
+			if seen.Has(other) {
+				continue
+			}
+
+			queue = append(queue, other)
+			seen.Insert(other)
+		}
+	}
+
+	return seen.Len() == len(graph.Stations)
 }

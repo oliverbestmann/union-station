@@ -237,17 +237,17 @@ func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Villag
 			{
 				Text:  village.Name,
 				Face:  Font24,
-				Color: HudTextColor,
+				Color: DarkTextColor,
 			},
 			{
 				Text:  fmt.Sprintf("Population: %d", village.PopulationCount),
 				Face:  Font16,
-				Color: HudTextColor,
+				Color: DarkTextColor,
 			},
 			{
 				Text:  connectedText,
 				Face:  Font16,
-				Color: HudTextColor,
+				Color: DarkTextColor,
 			},
 		},
 	}

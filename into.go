@@ -33,11 +33,12 @@ func (st *DialogStack) Clear() {
 	st.dialogs = nil
 }
 
-func (st *DialogStack) Update(dt float64) {
+func (st *DialogStack) Update(dt float64) (modal bool) {
 	if len(st.dialogs) > 0 {
 		dialog := &st.dialogs[len(st.dialogs)-1]
 
 		if dialog.Modal {
+			modal = true
 			st.modalAlpha = min(1, st.modalAlpha+8*dt)
 
 			if !st.initialized {
@@ -53,6 +54,8 @@ func (st *DialogStack) Update(dt float64) {
 	}
 
 	st.initialized = true
+
+	return
 }
 
 func (st *DialogStack) Draw(target *ebiten.Image) {

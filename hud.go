@@ -21,7 +21,7 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 
 	if g.stats.CoinsTotal > 0 {
 		msg := fmt.Sprintf("Budget: %d", g.stats.CoinsAvailable())
-		g.hudRectangleWithIcon(screen, &pos, msg, HudTextColor, assets.Coin())
+		g.hudRectangleWithIcon(screen, &pos, msg, DarkTextColor, assets.Coin())
 
 		if g.stats.CoinsPlanned > 0 {
 			// add some space between the rectangles
@@ -36,7 +36,7 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 			pos.X -= 16
 
 			msg := fmt.Sprintf("Connected %d of %d", g.stats.StationsConnected, g.stats.StationsTotal)
-			g.hudRectangleWithIcon(screen, &pos, msg, HudTextColor, nil)
+			g.hudRectangleWithIcon(screen, &pos, msg, DarkTextColor, nil)
 		}
 	}
 }

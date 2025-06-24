@@ -34,7 +34,7 @@ var StationColorConstructed = StationColor{
 
 var DebugColor color.Color = color.RGBA{R: 0xff, B: 0xff, A: 0xff}
 var BackgroundColor color.Color = rgbaOf(0xdbcfb1ff)
-var HudTextColor color.Color = rgbaOf(0x937b6aff)
+var DarkTextColor color.Color = rgbaOf(0x937b6aff)
 var WaterColor color.Color = rgbaOf(0x6d838eff)
 var TooltipColor color.Color = rgbaOf(0xeee1c4ff)
 var ShadowColor color.Color = rgbaOf(0xada38780)
