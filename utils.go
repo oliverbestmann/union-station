@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/oliverbestmann/union-station/assets"
@@ -47,45 +46,49 @@ func pop[T any](values *[]T) T {
 	return value
 }
 
+var spVertices []ebiten.Vertex
+var spIndices []uint16
+
 func StrokePath(target *ebiten.Image, path vector.Path, toScreen ebiten.GeoM, color color.Color, vop *vector.StrokeOptions) {
 	toWorld := toScreen
 	toWorld.Invert()
 
 	vop.Width = float32(TransformScalar(toWorld, float64(vop.Width)))
 
-	vertices, indices := path.AppendVerticesAndIndicesForStroke(nil, nil, vop)
+	spVertices, spIndices = path.AppendVerticesAndIndicesForStroke(spVertices[:0], spIndices[:0], vop)
 
-	for idx := range vertices {
-		x, y := toScreen.Apply(float64(vertices[idx].DstX), float64(vertices[idx].DstY))
-		vertices[idx].DstX = float32(x)
-		vertices[idx].DstY = float32(y)
+	for idx := range spVertices {
+		x, y := toScreen.Apply(float64(spVertices[idx].DstX), float64(spVertices[idx].DstY))
+		spVertices[idx].DstX = float32(x)
+		spVertices[idx].DstY = float32(y)
 	}
 
-	top := &colorm.DrawTrianglesOptions{}
+	ApplyColorToVertices(spVertices, color)
+
+	top := &ebiten.DrawTrianglesOptions{}
 	top.AntiAlias = true
 
-	var c colorm.ColorM
-	c.ScaleWithColor(color)
-
-	colorm.DrawTriangles(target, vertices, indices, whiteImage, c, top)
+	target.DrawTriangles(spVertices, spIndices, whiteImage, top)
 }
 
-func FillPath(target *ebiten.Image, path vector.Path, tr ebiten.GeoM, color color.Color) {
-	vertices, indices := path.AppendVerticesAndIndicesForFilling(nil, nil)
+var fpVertices []ebiten.Vertex
+var fpIndices []uint16
 
-	for idx := range vertices {
-		x, y := tr.Apply(float64(vertices[idx].DstX), float64(vertices[idx].DstY))
-		vertices[idx].DstX = float32(x)
-		vertices[idx].DstY = float32(y)
+func FillPath(target *ebiten.Image, path vector.Path, tr ebiten.GeoM, color color.Color) {
+	fpVertices, fpIndices = path.AppendVerticesAndIndicesForFilling(fpVertices[:0], fpIndices[:0])
+
+	for idx := range fpVertices {
+		x, y := tr.Apply(float64(fpVertices[idx].DstX), float64(fpVertices[idx].DstY))
+		fpVertices[idx].DstX = float32(x)
+		fpVertices[idx].DstY = float32(y)
 	}
 
-	top := &colorm.DrawTrianglesOptions{}
+	ApplyColorToVertices(fpVertices, color)
+
+	top := &ebiten.DrawTrianglesOptions{}
 	top.AntiAlias = true
 
-	var c colorm.ColorM
-	c.ScaleWithColor(color)
-
-	colorm.DrawTriangles(target, vertices, indices, whiteImage, c, top)
+	target.DrawTriangles(fpVertices, fpIndices, whiteImage, top)
 }
 
 type Promise[T any, P any] struct {

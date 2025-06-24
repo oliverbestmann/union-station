@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	"github.com/oliverbestmann/union-station/assets"
 	. "github.com/quasilyte/gmath"
 	"image/color"
+	"sync"
 )
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
@@ -84,13 +84,15 @@ func (g *Game) hudRectangleWithIcon(target *ebiten.Image, pos *Vec, msg string, 
 func DrawRoundRect(target *ebiten.Image, rectanglePos Vec, rectangleSize Vec, color color.Color) {
 	rrVertices, rrIndices := RoundedRectangle(rectanglePos, rectangleSize, 8)
 
-	c := colorm.ColorM{}
-	c.ScaleWithColor(color)
+	ApplyColorToVertices(rrVertices, color)
 
-	colorm.DrawTriangles(target, rrVertices, rrIndices, whiteImage, c, &colorm.DrawTrianglesOptions{
+	target.DrawTriangles(rrVertices, rrIndices, whiteImage, &ebiten.DrawTrianglesOptions{
 		AntiAlias: true,
 	})
 }
+
+var rrVertices []ebiten.Vertex
+var rrIndices []uint16
 
 func RoundedRectangle(pos Vec, size Vec, radius float64) ([]ebiten.Vertex, []uint16) {
 	r := float32(radius)
@@ -110,5 +112,28 @@ func RoundedRectangle(pos Vec, size Vec, radius float64) ([]ebiten.Vertex, []uin
 	path.ArcTo(c2.X, c2.Y, c0.X, c0.Y, r)
 	path.ArcTo(c0.X, c0.Y, c1.X, c1.Y, r)
 
-	return path.AppendVerticesAndIndicesForFilling(nil, nil)
+	rrVertices, rrIndices = path.AppendVerticesAndIndicesForFilling(rrVertices[:0], rrIndices[:0])
+	return rrVertices, rrIndices
+}
+
+var vertexCache = sync.Pool{
+	New: func() any {
+		value := &VertexCache{}
+		value.Self = value
+		return value.Self
+	},
+}
+
+type VertexCache struct {
+	Self     any
+	Vertices []ebiten.Vertex
+	Indices  []uint16
+}
+
+func AcquireVertexCache() *VertexCache {
+	return vertexCache.Get().(*VertexCache)
+}
+
+func (r *VertexCache) Release() {
+	vertexCache.Put(r.Self)
 }

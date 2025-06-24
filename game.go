@@ -85,6 +85,8 @@ type Game struct {
 	loosingIsGuaranteed bool
 	stationSize         float64
 
+	profileStop func()
+
 	tweens tween.Tweens
 }
 
@@ -157,6 +159,15 @@ func (g *Game) Update() error {
 	// step to the next seed
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 		g.Reset(g.seed + 1)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyP) && g.profileStop == nil {
+		g.profileStop = ProfileStart()
+	}
+
+	if inpututil.IsKeyJustReleased(ebiten.KeyP) && g.profileStop != nil {
+		g.profileStop()
+		g.profileStop = nil
 	}
 
 	// calculate delta time for animations

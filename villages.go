@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"image/color"
@@ -266,29 +265,10 @@ func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Villag
 }
 
 func DrawWindow(target *ebiten.Image, pos Vec, size Vec) {
-	// shadow
-	{
-		pos := pos.Add(vecSplat(4))
+	posShadow := pos.Add(vecSplat(4))
+	DrawRoundRect(target, posShadow, size, ShadowColor)
 
-		var cm colorm.ColorM
-		cm.ScaleWithColor(ShadowColor)
-
-		var op colorm.DrawImageOptions
-		op.GeoM.Scale(size.X, size.Y)
-		op.GeoM.Translate(pos.X, pos.Y)
-		colorm.DrawImage(target, whiteImage, cm, &op)
-	}
-
-	// tooltip itself
-	{
-		var cm colorm.ColorM
-		cm.ScaleWithColor(TooltipColor)
-
-		var op colorm.DrawImageOptions
-		op.GeoM.Scale(size.X, size.Y)
-		op.GeoM.Translate(pos.X, pos.Y)
-		colorm.DrawImage(target, whiteImage, cm, &op)
-	}
+	DrawRoundRect(target, pos, size, TooltipColor)
 }
 
 func pathOf(points []Vec, close bool) vector.Path {

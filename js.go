@@ -6,7 +6,7 @@ import (
 	"syscall/js"
 )
 
-func ProfileCPU() func() {
+func ProfileStart() func() {
 	return func() {}
 }
 

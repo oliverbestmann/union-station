@@ -8,7 +8,7 @@ import (
 
 var Debug = true
 
-func ProfileCPU() func() {
+func ProfileStart() func() {
 	return profile.Start(profile.MemProfile).Stop
 }
 

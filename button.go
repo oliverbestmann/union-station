@@ -106,7 +106,7 @@ func LayoutButtonsColumn(origin Vec, gap float64, buttons ...*Button) {
 	}
 }
 
-func toFloatRGBA(c color.Color) (r float64, g float64, b float64, a float64) {
+func ColorToRGBA64(c color.Color) (r, g, b, a float64) {
 	ir, ig, ib, ia := c.RGBA()
 
 	r = float64(ir) / 0xffff
@@ -117,8 +117,28 @@ func toFloatRGBA(c color.Color) (r float64, g float64, b float64, a float64) {
 	return
 }
 
+func ColorToRGBA32(c color.Color) (r, g, b, a float32) {
+	ir, ig, ib, ia := c.RGBA()
+
+	r = float32(ir) / 0xffff
+	g = float32(ig) / 0xffff
+	b = float32(ib) / 0xffff
+	a = float32(ia) / 0xffff
+
+	return
+}
+
+func ApplyColorToVertices(vertices []ebiten.Vertex, c color.Color) {
+	r, g, b, a := ColorToRGBA32(c)
+
+	for idx := range vertices {
+		v := &vertices[idx]
+		v.ColorR, v.ColorG, v.ColorB, v.ColorA = r, g, b, a
+	}
+}
+
 func scaleColorWithAlpha(c color.Color, alpha float64) color.Color {
-	r, g, b, a := toFloatRGBA(c)
+	r, g, b, a := ColorToRGBA64(c)
 
 	return color.RGBA64{
 		R: uint16(r * alpha * 0xffff),

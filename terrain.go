@@ -3,7 +3,6 @@ package main
 import (
 	"github.com/furui/fastnoiselite-go"
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/colorm"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 	. "github.com/quasilyte/gmath"
 	"iter"
@@ -53,16 +52,13 @@ func NewTerrainGenerator(rng *rand.Rand, worldSize Rect) *TerrainGenerator {
 }
 
 func (t *Terrain) Draw(target *ebiten.Image, toScreen ebiten.GeoM) {
-	var color colorm.ColorM
-	color.ScaleWithColor(WaterColor)
-
-	var top colorm.DrawTrianglesOptions
+	var top ebiten.DrawTrianglesOptions
 	top.AntiAlias = true
 
 	for _, river := range t.Rivers {
 		// bring vertices to screen
 		trVertices := TransformVertices(toScreen, river.Vertices, &t.scratch)
-		colorm.DrawTriangles(target, trVertices, river.Indices, whiteImage, color, &top)
+		target.DrawTriangles(trVertices, river.Indices, whiteImage, &top)
 	}
 }
 
@@ -124,6 +120,8 @@ func (t *TerrainGenerator) GenerateRiver() {
 		Width:    width,
 		LineJoin: vector.LineJoinRound,
 	})
+
+	ApplyColorToVertices(vertices, WaterColor)
 
 	outline := verticesToLines(vertices, indices)
 

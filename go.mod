@@ -19,6 +19,7 @@ require (
 	github.com/felixge/fgprof v0.9.5 // indirect
 	github.com/go-text/typesetting v0.3.0 // indirect
 	github.com/google/pprof v0.0.0-20250607225305-033d6d78b36a // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
 	github.com/neilotoole/fifomu v0.1.2 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
