@@ -3,14 +3,13 @@ package assets
 import (
 	"bytes"
 	_ "embed"
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/neilotoole/streamcache"
+	"github.com/oliverbestmann/union-station/fetch"
 	"github.com/oliverbestmann/union-station/qoa"
 	"image/png"
 	"io"
-	"net/http"
 	"os"
 	"runtime"
 	"sync"
@@ -69,13 +68,7 @@ func ButtonPress() Int16Samples {
 func loadStreamOf(name string) MakeStream {
 	if runtime.GOOS == "js" {
 		value := sync.OnceValue(func() *streamcache.Stream {
-			resp, err := http.Get(name)
-			if err != nil {
-				fmt.Printf("[assets] request failed %q: %s\n", name, err)
-				return streamcache.New(bytes.NewReader(dummy_qoa))
-			}
-
-			return streamcache.New(resp.Body)
+			return streamcache.New(fetch.Fetch(name))
 		})
 
 		return func() io.ReadCloser {
