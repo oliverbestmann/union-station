@@ -114,7 +114,7 @@ func DecodeAudio(idle *IdleSuspend, stream Stream, yield func(float64)) Samples 
 	samples := make([]byte, 0, max(1024, totalSize))
 
 	// ~50ms worth of audio data
-	buf := make([]byte, stream.SampleRate()/20*bytesPerSample)
+	buf := make([]byte, stream.SampleRate()/5*bytesPerSample)
 
 	for {
 		n, err := io.ReadFull(stream, buf)
