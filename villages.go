@@ -232,14 +232,6 @@ func DrawVillageBounds(target *ebiten.Image, village *Village, opts DrawVillageB
 }
 
 func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Village) {
-	connectedText := "Not connected"
-	for _, edge := range g.acceptedGraph.Edges() {
-		if edge.One.Village == village || edge.Two.Village == village {
-			connectedText = "Connected"
-			break
-		}
-	}
-
 	dialog := Dialog{
 		Padding: vecSplat(16),
 		Texts: []Text{
@@ -250,11 +242,6 @@ func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Villag
 			},
 			{
 				Text:  fmt.Sprintf("Population: %d", village.PopulationCount),
-				Face:  Font16,
-				Color: DarkTextColor,
-			},
-			{
-				Text:  connectedText,
 				Face:  Font16,
 				Color: DarkTextColor,
 			},
@@ -567,7 +554,6 @@ var funfacts = []string{
 	"There’s a local myth that the sheep in $NAME can predict train delays.",
 	"The train to $NAME only stops if someone waves with their left hand.",
 	"In $NAME, every street is named after a different type of cheese.",
-	"$NAME residents swear they’ve seen a ghost train that smells of marmalade.",
 	"The mayor of $NAME was elected after winning a pie-eating contest.",
 	"A hedge maze in $NAME has no exit and the locals like it that way.",
 	"$NAME’s official flower is a dandelion wearing a top hat (in sculpture form).",
