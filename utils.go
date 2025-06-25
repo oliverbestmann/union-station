@@ -34,18 +34,6 @@ var Font64 = &text.GoTextFace{
 	Size:   64.0,
 }
 
-func pop[T any](values *[]T) T {
-	n := len(*values)
-	if n == 0 {
-		panic("slice is empty")
-	}
-
-	value := (*values)[n-1]
-	*values = (*values)[:n-1]
-
-	return value
-}
-
 var spVertices []ebiten.Vertex
 var spIndices []uint16
 
