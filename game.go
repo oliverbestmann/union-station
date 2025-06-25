@@ -609,6 +609,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		DrawTextCenter(screen, "THIS GAME IS\nWORK IN PROGRESS", Font64, pos, rgbaOf(0x00000030))
 	}
 
+	pos := imageSizeOf(screen).Sub(Vec{X: 16, Y: 16 + 12})
+	DrawTextRight(screen, fmt.Sprintf("Level: %d", g.seed), Font12, pos, rgbaOf(0x00000030))
+
 	if g.debug {
 		if ebiten.IsKeyPressed(ebiten.KeyN) {
 			if g.noise == nil {
