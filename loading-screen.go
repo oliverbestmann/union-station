@@ -141,9 +141,9 @@ Welcome to Union Station - a strategic railway builder
 set in the rolling hills of the British countryside.
 
 Your mission? Unite distant towns by constructing efficient
-train routes on a limited budget. Plan your network carefully,
-balancing cost with connectivity. Activate routes early
-to boost your public reputation and climb the global leaderboard.
+train routes on a modest budget. Plan your network with care,
+balancing cost against connectivity. Open routes early to earn
+a sterling reputation and climb the global leaderboard.
 
 Every decision counts.
 Will you be the one to unite the nation, one rail at a time?
