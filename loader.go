@@ -24,6 +24,8 @@ type Loader[T any] struct {
 }
 
 func (l *Loader[T]) Update() error {
+	UpdateCursorState()
+
 	switch {
 	case l.playing:
 		return l.game.Update()

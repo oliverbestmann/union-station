@@ -18,7 +18,17 @@ type CursorState struct {
 var activeTouchId ebiten.TouchID = math.MinInt
 var activeTouchPosition Vec
 
+var cursorState CursorState
+
 func Cursor() CursorState {
+	return cursorState
+}
+
+func UpdateCursorState() {
+	cursorState = buildCursorState()
+}
+
+func buildCursorState() CursorState {
 	if activeTouchId >= 0 {
 		released := inpututil.IsTouchJustReleased(activeTouchId)
 		if released {
