@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -97,6 +98,7 @@ type Game struct {
 	won  bool
 
 	resetOnUpdate *ResetOnUpdate
+	leaderboard   Promise[Leaderboard, struct{}]
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -235,6 +237,8 @@ func (g *Game) Update() error {
 
 		g.stationSize = 0.0
 	}
+
+	g.checkLeaderboardResponse()
 
 	g.stationSize = g.stationSize + dtSecs*2
 
@@ -836,24 +840,53 @@ outer:
 				Texts: []Text{
 					{
 						Face:  Font24,
-						Text:  "Congratulation",
+						Text:  "Brilliant work, Engineer!",
 						Color: DarkTextColor,
-						Gap:   8,
+					},
+
+					{
+						Face:   Font16,
+						Text:   "You’ve gone and done it — the countryside’s all linked up, and the rails are running",
+						Color:  DarkTextColor,
+						Offset: Vec{Y: 8},
 					},
 
 					{
 						Face:  Font16,
-						Text:  "You have connected the countryside",
+						Text:  "smoother than a fresh cuppa on a rainy day. Top marks for a job well done! Now",
 						Color: DarkTextColor,
+					},
+
+					{
+						Face:  Font16,
+						Text:  "why not pop down below and check the leaderboard?",
+						Color: DarkTextColor,
+					},
+
+					{
+						Face:  Font16,
+						Text:  "Let’s see how your brilliant network stacks up against the rest!",
+						Color: DarkTextColor,
+					},
+
+					{
+						Face:   Font16,
+						Text:   "Please hold tight, loading the leaderboard now...",
+						Color:  DarkTextColor,
+						Offset: Vec{X: 8},
 					},
 				},
 
-				Button: NewButton("Next", AcceptButtonColors).WithOnClick(func() {
-					g.resetOnUpdate = &ResetOnUpdate{
-						NextSeed: g.nextSeed(),
-					}
-				}),
+				Buttons: []*Button{
+					NewButton("Onwards!", AcceptButtonColors).WithOnClick(func() {
+						g.resetOnUpdate = &ResetOnUpdate{
+							NextSeed: g.nextSeed(),
+						}
+					}),
+				},
 			})
+
+			g.reportScore()
 		}
 
 		return
@@ -873,20 +906,54 @@ outer:
 			Texts: []Text{
 				{
 					Face:  Font24,
-					Text:  "We are so sorry",
+					Text:  "Unlucky this time, mate",
+					Color: DarkTextColor,
+				},
+
+				{
+					Face:   Font16,
+					Text:   "You gave it a proper go, but the countryside’s still a bit disconnected and the rails",
+					Color:  DarkTextColor,
+					Offset: Vec{Y: 8},
+				},
+
+				{
+					Face:  Font16,
+					Text:  fmt.Sprintf("didn’t quite make it to glory. You’re %d connections and %d quid short", missingConnections, missingCoins),
 					Color: DarkTextColor,
 				},
 
 				{
 					Face:  Font16,
-					Text:  "You failed your assignment",
+					Text:  "of the mark, I’m afraid. Still, no shame in trying — even the best conductors",
 					Color: DarkTextColor,
 				},
+
 				{
 					Face:  Font16,
-					Text:  fmt.Sprintf("You're missing %d Coins to build %d more connections", missingCoins, missingConnections),
+					Text:  "have a bumpy ride now and then. Have another crack, and maybe next time your",
 					Color: DarkTextColor,
 				},
+
+				{
+					Face:  Font16,
+					Text:  "brilliant network will make it onto the leaderboard!",
+					Color: DarkTextColor,
+				},
+			},
+
+			Buttons: []*Button{
+				NewButton("Have another go", AcceptButtonColors).WithAutoSize().WithOnClick(func() {
+					g.resetOnUpdate = &ResetOnUpdate{
+						NextSeed: g.seed,
+					}
+				}),
+
+				NewButton("Onwards!", AcceptButtonColors).WithAutoSize().WithOnClick(func() {
+					g.resetOnUpdate = &ResetOnUpdate{
+						NextSeed: g.nextSeed(),
+					}
+				}),
 			},
 		})
 
@@ -947,4 +1014,47 @@ func (g *Game) nextSeed() uint64 {
 	}
 
 	return nextSeed
+}
+
+func (g *Game) reportScore() {
+	g.leaderboard = ReportHighscore(g.seed, "foobar", 123)
+}
+
+func (g *Game) checkLeaderboardResponse() {
+	if result := g.leaderboard.GetOnce(); result != nil {
+		dialog := g.dialogStack.ById("won")
+		if dialog == nil {
+			return
+		}
+
+		// remove the last text segment
+		dialog.Texts = dialog.Texts[:len(dialog.Texts)-1]
+
+		items := result.Items
+		if len(items) > 20 {
+			items = items[:20]
+		}
+
+		// and add one line per highscore entry
+		for idx := range 20 {
+			item := items[0]
+
+			yOffset := iff(idx == 0, 8.0, 0)
+
+			dialog.Texts = append(dialog.Texts, Text{
+				Face:   Font16,
+				Text:   item.Player,
+				Color:  DarkTextColor,
+				Height: new(float64),
+				Offset: Vec{Y: yOffset},
+			})
+
+			dialog.Texts = append(dialog.Texts, Text{
+				Face:   Font16,
+				Text:   strconv.Itoa(item.Score),
+				Color:  DarkTextColor,
+				Offset: Vec{X: 200},
+			})
+		}
+	}
 }

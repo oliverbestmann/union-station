@@ -25,6 +25,17 @@ func (st *DialogStack) CloseById(id string) {
 	})
 }
 
+func (st *DialogStack) ById(id string) *Dialog {
+	for idx := range st.dialogs {
+		dialog := &st.dialogs[idx]
+		if dialog.Id == id {
+			return dialog
+		}
+	}
+
+	return nil
+}
+
 func (st *DialogStack) Push(dialog Dialog) {
 	st.dialogs = append(st.dialogs, dialog)
 }
@@ -37,10 +48,10 @@ func (st *DialogStack) Update(dt float64) (modal bool) {
 	if len(st.dialogs) > 0 {
 		dialog := &st.dialogs[len(st.dialogs)-1]
 
-		if dialog.Button != nil {
-			cursor := Cursor()
-			dialog.Button.Hover(cursor)
-			dialog.Button.IsClicked(cursor)
+		cursor := Cursor()
+		for _, button := range dialog.Buttons {
+			button.Hover(cursor)
+			button.IsClicked(cursor)
 		}
 
 		if dialog.Modal {
@@ -84,7 +95,7 @@ type Dialog struct {
 	Id      string
 	Texts   []Text
 	Modal   bool
-	Button  *Button
+	Buttons []*Button
 	Padding Vec
 
 	// the minimum size of the dialog (without padding)
@@ -92,10 +103,17 @@ type Dialog struct {
 }
 
 func (d *Dialog) Layout(screenSize Vec) {
-	if d.Button != nil {
-		size, button := d.Measure()
+	if len(d.Buttons) > 0 {
+		// position is relative to the dialogs origin
+		size, pos := d.Measure()
+
+		// origin of the dialog
 		origin := screenSize.Mulf(0.5).Sub(size.Mulf(0.5))
-		d.Button.Position = button.Add(origin)
+
+		for _, button := range d.Buttons {
+			button.Position = pos.Add(origin)
+			pos = pos.Add(Vec{X: button.Size.X}).Add(Vec{X: 16})
+		}
 	}
 }
 
@@ -121,8 +139,8 @@ func (d *Dialog) DrawAt(target *ebiten.Image, pos Vec) {
 	DrawTexts(target, textPos, d.Texts)
 
 	// draw the button
-	if d.Button != nil {
-		d.Button.Draw(target)
+	for _, button := range d.Buttons {
+		button.Draw(target)
 	}
 }
 
@@ -142,17 +160,26 @@ func (d *Dialog) Measure() (size Vec, button Vec) {
 	const buttonSpacing = 16
 
 	// if we have a button, add space for the button
-	if d.Button != nil {
+	if len(d.Buttons) > 0 {
 		size.Y += buttonSpacing
 
+		var buttonsWidth float64
+		var buttonsHeight float64
+		for idx, button := range d.Buttons {
+			spacing := iff(idx == 0, 0.0, 16.0)
+			buttonsWidth += button.Size.X + spacing
+
+			buttonsHeight = max(buttonsHeight, button.Size.Y)
+		}
+
 		// account for the width of the button
-		size.X = max(size.X, d.Button.Size.X)
+		size.X = max(size.X, buttonsWidth)
 
 		// extract position of button
-		button = Vec{X: size.X/2 - d.Button.Size.X/2, Y: size.Y}
+		button = Vec{X: size.X/2 - buttonsWidth/2, Y: size.Y}
 
 		// add the button height to the size
-		size.Y += d.Button.Size.Y
+		size.Y += buttonsHeight
 	}
 
 	size = size.Add(d.paddingWithDefaultValue())

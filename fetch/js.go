@@ -12,8 +12,8 @@ var fn js.Value
 
 func init() {
 	fn = js.Global().Call("eval", `
-		async (url, write) => {
-			const resp = await fetch(url);
+		async (url, method, write) => {
+			const resp = await fetch(url, {method: method});
             
             for await (const chunk of resp.body) {
                 write(chunk);
@@ -24,7 +24,15 @@ func init() {
 	`)
 }
 
-func Fetch(url string) io.ReadCloser {
+func Get(url string) io.Reader {
+	return fetch(url, "GET")
+}
+
+func Post(url string) io.Reader {
+	return fetch(url, "POST")
+}
+
+func fetch(url, method string) io.Reader {
 	read, write := io.Pipe()
 
 	// chunks received and ready for send out
@@ -48,7 +56,7 @@ func Fetch(url string) io.ReadCloser {
 		return nil
 	})
 
-	go fn.Invoke(url, receive)
+	go fn.Invoke(url, method, receive)
 
 	go func() {
 		defer func() { _ = write.Close() }()

@@ -108,6 +108,12 @@ func (b *Button) WithOnClick(onClick func()) *Button {
 	return b
 }
 
+func (b *Button) WithAutoSize() *Button {
+	width := MeasureText(Font24, b.Text).X
+	b.Size = Vec{X: width + 64, Y: 48}
+	return b
+}
+
 func LayoutButtonsColumn(origin Vec, gap float64, buttons ...*Button) {
 	pos := origin
 

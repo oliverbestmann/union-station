@@ -68,7 +68,7 @@ func ButtonPress() Int16Samples {
 func loadStreamOf(name string) MakeStream {
 	if runtime.GOOS == "js" {
 		value := sync.OnceValue(func() *streamcache.Stream {
-			return streamcache.New(fetch.Fetch(name))
+			return streamcache.New(fetch.Get(name))
 		})
 
 		return func() io.ReadCloser {
