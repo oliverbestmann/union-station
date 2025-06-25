@@ -99,6 +99,8 @@ type Game struct {
 
 	resetOnUpdate *ResetOnUpdate
 	leaderboard   Promise[Leaderboard, struct{}]
+
+	score int
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -308,8 +310,22 @@ func (g *Game) Input() {
 
 	// check button inputs
 	if g.btnAcceptConnection.IsClicked(g.cursor) {
+		accepted := &g.acceptedGraph
+
+		var newlyConnectedCount int
+
+		if !g.villageIsConnected(g.selectedStationOne.Village) {
+			newlyConnectedCount += g.selectedStationOne.Village.PopulationCount
+		}
+
+		if !g.villageIsConnected(g.selectedStationTwo.Village) {
+			if g.selectedStationOne.Village != g.selectedStationTwo.Village {
+				newlyConnectedCount += g.selectedStationTwo.Village.PopulationCount
+			}
+		}
+
 		// accept the station
-		g.acceptedGraph.Insert(StationEdge{
+		accepted.Insert(StationEdge{
 			One:     g.selectedStationOne,
 			Two:     g.selectedStationTwo,
 			Created: g.now,
@@ -318,12 +334,23 @@ func (g *Game) Input() {
 		// and remove it from planning, if it is still in there
 		g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
 
-		g.stats.StationsConnected = 0
-		for _, station := range g.acceptedGraph.Stations {
-			if g.acceptedGraph.HasConnections(station) {
-				g.stats.StationsConnected += 1
+		// count the number of stations connected
+		var stationsConnected int
+
+		for _, station := range accepted.Stations {
+			if accepted.HasConnections(station) {
+				stationsConnected += 1
 			}
 		}
+
+		// calculate score increase
+		stationCount := len(accepted.Stations)
+		scoreUpdate := (stationCount - (stationsConnected - 1)) * newlyConnectedCount / stationCount
+
+		// update the score based on the number of stations already connected and the number
+		// of newly connected peopled
+		g.stats.Score += scoreUpdate
+		g.stats.StationsConnected = stationsConnected
 
 		g.resetInput()
 	}
@@ -1013,7 +1040,8 @@ func (g *Game) nextSeed() uint64 {
 }
 
 func (g *Game) reportScore() {
-	g.leaderboard = ReportHighscore(g.seed, "foobar", 123)
+	playerName := PlayerName()
+	g.leaderboard = ReportHighscore(g.seed, playerName, g.stats.Score)
 }
 
 func (g *Game) checkLeaderboardResponse() {
@@ -1026,15 +1054,16 @@ func (g *Game) checkLeaderboardResponse() {
 		// remove the last text segment
 		dialog.Texts = dialog.Texts[:len(dialog.Texts)-1]
 
+		availableWidth := MeasureTexts(dialog.Texts).X
+
+		// limit items
 		items := result.Items
 		if len(items) > 20 {
 			items = items[:20]
 		}
 
 		// and add one line per highscore entry
-		for idx := range 20 {
-			item := items[0]
-
+		for idx, item := range items {
 			yOffset := iff(idx == 0, 8.0, 0)
 
 			dialog.Texts = append(dialog.Texts, Text{
@@ -1045,12 +1074,26 @@ func (g *Game) checkLeaderboardResponse() {
 				Offset: Vec{Y: yOffset},
 			})
 
+			// manually right align with availableWidth
+			scoreStr := strconv.Itoa(item.Score)
+			x := availableWidth - MeasureText(Font16, scoreStr).X
+
 			dialog.Texts = append(dialog.Texts, Text{
 				Face:   Font16,
-				Text:   strconv.Itoa(item.Score),
+				Text:   scoreStr,
 				Color:  DarkTextColor,
-				Offset: Vec{X: 200},
+				Offset: Vec{X: x},
 			})
 		}
 	}
+}
+
+func (g *Game) villageIsConnected(village *Village) bool {
+	for _, station := range g.acceptedGraph.Stations {
+		if station.Village == village && g.acceptedGraph.HasConnections(station) {
+			return true
+		}
+	}
+
+	return false
 }

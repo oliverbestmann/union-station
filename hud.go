@@ -16,19 +16,19 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 		return
 	}
 
-	// hud position we start to draw at
-	pos := Vec{X: imageSizeOf(screen).X - 16, Y: 16}
-
 	if g.stats.CoinsTotal > 0 {
+		// hud position we start to draw at
+		pos := Vec{X: imageSizeOf(screen).X - 16, Y: 16}
+
 		msg := fmt.Sprintf("Budget: %d", g.stats.CoinsAvailable())
-		g.hudRectangleWithIcon(screen, &pos, msg, DarkTextColor, assets.Coin())
+		g.hudRectangleWithIcon(screen, &pos, -1, msg, HudRectangleColor, assets.Coin())
 
 		if g.stats.CoinsPlanned > 0 {
 			// add some space between the rectangles
 			pos.X -= 16
 
 			msg := fmt.Sprintf("Planned: %d", g.stats.CoinsPlanned)
-			g.hudRectangleWithIcon(screen, &pos, msg, HudPlannedRectangleColor, assets.PlannedCoin())
+			g.hudRectangleWithIcon(screen, &pos, -1, msg, HudPlannedRectangleColor, assets.PlannedCoin())
 		}
 
 		if g.stats.StationsConnected > 0 {
@@ -36,12 +36,20 @@ func (g *Game) drawHUD(screen *ebiten.Image) {
 			pos.X -= 16
 
 			msg := fmt.Sprintf("Connected %d of %d", g.stats.StationsConnected, g.stats.StationsTotal)
-			g.hudRectangleWithIcon(screen, &pos, msg, DarkTextColor, nil)
+			g.hudRectangleWithIcon(screen, &pos, -1, msg, HudRectangleColor, nil)
 		}
+
+	}
+
+	if g.stats.Score > 0 {
+		pos := Vec{X: 16, Y: 16}
+
+		msg := fmt.Sprintf("Score: %d", g.stats.Score)
+		g.hudRectangleWithIcon(screen, &pos, 1, msg, HudRectangleColor, nil)
 	}
 }
 
-func (g *Game) hudRectangleWithIcon(target *ebiten.Image, pos *Vec, msg string, rectangleColor color.Color, icon *ebiten.Image) {
+func (g *Game) hudRectangleWithIcon(target *ebiten.Image, pos *Vec, dir float64, msg string, rectangleColor color.Color, icon *ebiten.Image) {
 	textWidth := MeasureText(Font24, msg).X
 
 	var iconSize Vec
@@ -51,7 +59,11 @@ func (g *Game) hudRectangleWithIcon(target *ebiten.Image, pos *Vec, msg string, 
 
 	// 16px padding, 8px gap, icon size
 	rSize := Vec{X: textWidth + 8 + iconSize.X + 16*2, Y: 48}
-	rPos := Vec{X: pos.X - rSize.X, Y: pos.Y - 8}
+	rPos := Vec{X: pos.X, Y: pos.Y - 8}
+
+	if dir < 0 {
+		rPos.X -= rSize.X
+	}
 
 	// draw a small shadow
 	shadow := rPos.Add(vecSplat(2))
@@ -61,24 +73,38 @@ func (g *Game) hudRectangleWithIcon(target *ebiten.Image, pos *Vec, msg string, 
 	DrawRoundRect(target, rPos, rSize, rectangleColor)
 
 	// padding within the rectangle
-	pos.X -= 16
+	pos.X += 16 * dir
 
 	if icon != nil {
 		// draw the coin icon
-		pos.X -= iconSize.X
+		if dir < 0 {
+			pos.X -= iconSize.X
+		}
+
 		op := &ebiten.DrawImageOptions{}
 		op.GeoM.Translate(pos.X, pos.Y)
 		target.DrawImage(icon, op)
 
+		if dir > 0 {
+			pos.X += iconSize.X
+		}
+
 		// spacing to the text
-		pos.X -= 8
+		pos.X += 8 * dir
 	}
 
-	pos.X -= textWidth
+	if dir < 0 {
+		pos.X -= textWidth
+	}
+
 	DrawTextLeft(target, msg, Font24, *pos, BackgroundColor)
 
+	if dir > 0 {
+		pos.X += textWidth
+	}
+
 	// add some padding within the rectangle
-	pos.X -= 16
+	pos.X += 16 * dir
 }
 
 func DrawRoundRect(target *ebiten.Image, rectanglePos Vec, rectangleSize Vec, color color.Color) {

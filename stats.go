@@ -18,6 +18,8 @@ type Stats struct {
 
 	StationsTotal     int
 	StationsConnected int
+
+	Score int
 }
 
 func (s *Stats) CoinsAvailable() Coins {

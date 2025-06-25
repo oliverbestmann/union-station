@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/fogleman/ease"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
@@ -136,7 +137,9 @@ func trimWords(text string, wordCount int) string {
 	return text
 }
 
-var howto = strings.TrimSpace(`
+var howto = strings.TrimSpace(fmt.Sprintf(`
+To %s:
+
 Welcome to Union Station - a strategic railway builder
 set in the rolling hills of the British countryside.
 
@@ -147,4 +150,4 @@ a sterling reputation and climb the global leaderboard.
 
 Every decision counts.
 Will you be the one to unite the nation, one rail at a time?
-`)
+`, PlayerName()))

@@ -18,3 +18,7 @@ type IdleSuspend struct {
 func (i *IdleSuspend) MaybeSuspend() {
 	// do nothing, we don't need to suspend
 }
+
+func PlayerName() string {
+	return "Hopfenherrscher"
+}

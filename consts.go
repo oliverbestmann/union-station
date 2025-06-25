@@ -41,6 +41,7 @@ var ShadowColor color.Color = rgbaOf(0xada38780)
 
 var LightTextColor color.Color = rgbaOf(0xdbcfb1ff)
 
+var HudRectangleColor color.Color = rgbaOf(0x937b6aff)
 var HudPlannedRectangleColor = StationColorPlanned.Stroke
 
 var StartGameButtonColors = ButtonColors{

@@ -45,6 +45,21 @@
 <script src="wasm_exec.js"></script>
 
 <script>
+    window.Player = null;
+
+    window.GetPlayer = function GetPlayer(candidate) {
+        try {
+            const name = window.Player ?? localStorage.getItem("union-station.Player") ?? candidate;
+            localStorage.setItem("union-station.Player", name)
+            return name
+            
+        } catch (_err) {
+            return candidate
+        }
+    }
+</script>
+
+<script>
     // setup polyfill for requestIdleCallback
     if (!window.requestIdleCallback) {
         window.requestIdleCallback = function (cb) {

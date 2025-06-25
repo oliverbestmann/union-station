@@ -3,6 +3,8 @@
 package main
 
 import (
+	"math/rand/v2"
+	"strings"
 	"syscall/js"
 )
 
@@ -42,4 +44,68 @@ func requestIdleCallback() func() float64 {
 	js.Global().Get("window").Call("requestIdleCallback", handler)
 
 	return <-syncCh
+}
+
+func PlayerName() (name string) {
+	defer func() { _ = recover() }()
+
+	prefix := iff(rand.IntN(2) == 0, "Mr.", "Mrs.")
+	candidate := prefix + " " + surnames[rand.IntN(len(surnames))]
+
+	playerVar := js.Global().Call("GetPlayer", candidate)
+	if !playerVar.IsNull() && !playerVar.IsUndefined() {
+		player := strings.TrimSpace(playerVar.String())
+		if player != "" {
+			return player
+		}
+	}
+
+	return candidate
+}
+
+var surnames = []string{
+	"Bennett",
+	"Pembroke",
+	"Ashworth",
+	"Hargreaves",
+	"Middleton",
+	"Montgomery",
+	"Fairfax",
+	"Blakemore",
+	"Thorne",
+	"Everly",
+	"Clarke",
+	"Wainwright",
+	"Pritchard",
+	"Ellis",
+	"Chadwick",
+	"Gresham",
+	"Foster",
+	"Holloway",
+	"Templeton",
+	"Redgrave",
+	"Winthrop",
+	"Hawthorne",
+	"Linton",
+	"Farrow",
+	"Golding",
+	"Fairclough",
+	"Blackwood",
+	"Stratton",
+	"Dunmore",
+	"Prescott",
+	"Carrington",
+	"Trevelyan",
+	"Marlowe",
+	"Bramhall",
+	"Huxley",
+	"Greaves",
+	"Alderton",
+	"Kingsley",
+	"Hargrave",
+	"Rowntree",
+	"Whittington",
+	"Amesbury",
+	"Beckford",
+	"Cavendish",
 }
