@@ -6,14 +6,6 @@
         margin: 0;
 
         background: black;
-    }
-
-    #Loader {
-        display: grid;
-        place-content: center;
-        height: 100dvh;
-        width: 100dvw;
-
         color: #dbcfb1;
 
         font-family: "CoinageCapsKrugerGray", serif;
@@ -23,9 +15,20 @@
         text-align: center;
 
         line-height: 120%;
+
+        display: flex;
+        flex-direction: column;
+        align-items: center;
     }
 
-    #Progress {
+    #Loader {
+        display: grid;
+        place-content: center;
+        height: 100dvh;
+        width: 100dvw;
+    }
+
+    .progress {
         font-size: 16px;
     }
 
@@ -37,9 +40,66 @@
     }
 </style>
 
+
+<style>
+    #Loader {
+        display: none;
+    }
+
+    #player-config {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        width: 400px;
+        font-family: "CoinageCapsKrugerGray", serif;
+
+        padding-top: 20dvh;
+    }
+
+    #player-config button, #player-config input {
+        display: block;
+        width: 100%;
+        font-family: "CoinageCapsKrugerGray", serif;
+        font-size: 16px;
+        box-sizing: border-box;
+        padding: 8px;
+        background: #222;
+        border: 1px solid #dbcfb1;
+    }
+
+    input {
+        color: #dbcfb1;
+    }
+
+    button {
+        color: #dbcfb1;
+    }
+
+    #player-config label {
+        display: block;
+    }
+
+    .small {
+        font-size: 14px;
+    }
+</style>
+
+<form id="player-config" onsubmit="return startGame()">
+    <label for="username">
+        Choose a name for the leaderboard
+    </label>
+
+    <input type="text" id="username" name="username" placeholder="Your name">
+
+    <button type="submit">Start</button>
+
+    <br><br>
+    <span class="progress small">&nbsp;</span>
+</form>
+
 <div id="Loader">
     <div>Loading game&hellip;</div>
-    <div id="Progress">&nbsp;</div>
+    <div class="progress">&nbsp;</div>
 </div>
 
 <script src="wasm_exec.js"></script>
@@ -52,7 +112,7 @@
             const name = window.Player ?? localStorage.getItem("union-station.Player") ?? candidate;
             localStorage.setItem("union-station.Player", name)
             return name
-            
+
         } catch (_err) {
             return candidate
         }
@@ -77,24 +137,10 @@
         };
     }
 
-    const observer = new MutationObserver(events => {
-        for (const event of events) {
-            for (const node of event.addedNodes) {
-                if (node.nodeName.toLowerCase() === "canvas") {
-                    document.querySelector("#Loader").remove();
-                    observer.disconnect();
-                }
-            }
-        }
-    });
-
-    observer.observe(document.body, {childList: true});
-
+    // fetch the wasm binary
     const response = fetch("unionstation.wasm").then(response => {
         let loaded = 0
         const size = (response.headers.get('Content-Length') ?? response.headers.get("x-goog-stored-content-length")) | 0;
-
-        const progressNode = document.querySelector("#Progress");
 
         const progress = new TransformStream({
             transform(chunk, controller) {
@@ -102,7 +148,9 @@
                 controller.enqueue(chunk);
 
                 if (size > 0) {
-                    progressNode.innerText = ((loaded / 1024) | 0) + "kb out of " + ((size / 1024) | 0) + "kb";
+                    for (const node of document.querySelectorAll(".progress")) {
+                        node.innerText = ((loaded / 1024) | 0) + "kb out of " + ((size / 1024) | 0) + "kb";
+                    }
                 }
             }
         });
@@ -117,15 +165,85 @@
         // Make sure to copy the headers!
         // Wasm is very picky with it's headers and it will fail to compile if they are not
         // specified correctly.
-        for (var pair of response.headers.entries()) {
+        for (let pair of response.headers.entries()) {
             patched.headers.set(pair[0], pair[1]);
         }
 
         return patched;
     });
 
+    // start loading wasm in the background
     const go = new Go();
-    WebAssembly.instantiateStreaming(response, go.importObject).then(result => {
-        go.run(result.instance);
+    const wasm$ = WebAssembly.instantiateStreaming(response, go.importObject);
+
+    wasm$.then(() => {
+        // remove progress once all data was received
+        for (const node of document.querySelectorAll(".progress")) {
+            node.innerHTML = "&nbsp;"
+        }
     });
+
+    addEventListener("load", () => {
+        try {
+            // restore player
+            const player = localStorage.getItem("union-station.Player") ?? "";
+            document.querySelector("#username").value = player;
+        } catch (_err) {
+            // do nothing
+        }
+    });
+
+    window.startGame = function startGame() {
+        // store player
+        const player = document.querySelector("#username").value;
+
+        if (player.trim()) {
+            window.Player = player
+            // store player in localStorge for next time
+            try {
+                localStorage.setItem("union-station.Player", player);
+            } catch (_err) {
+                // do nothing
+            }
+        }
+
+        void startGameAsync()
+
+        return false;
+    }
+
+    async function startGameAsync() {
+        observeGameStart();
+
+        await switchToLoader()
+
+        // start the game
+        const wasm = await wasm$;
+        await go.run(wasm.instance);
+    }
+
+    async function switchToLoader() {
+        document.querySelector("#Loader").style.display = "grid";
+        document.querySelector("#player-config").style.display = "none";
+        await animationFrame();
+    }
+
+    async function animationFrame() {
+        await new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
+
+    function observeGameStart() {
+        const observer = new MutationObserver(events => {
+            for (const event of events) {
+                for (const node of event.addedNodes) {
+                    if (node.nodeName.toLowerCase() === "canvas") {
+                        document.querySelector("#Loader").remove();
+                        observer.disconnect();
+                    }
+                }
+            }
+        });
+
+        observer.observe(document.body, {childList: true});
+    }
 </script>

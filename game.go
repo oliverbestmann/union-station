@@ -1016,11 +1016,18 @@ func (g *Game) allStationsConnected() bool {
 func (g *Game) nextSeed() uint64 {
 	simple := []uint64{
 		47,
+		49,
+		51,
+		53,
+		63,
 	}
 
 	nice := []uint64{
 		18,
 		17,
+		35,
+		48,
+		62,
 	}
 
 	nextSeed := nice[0]
