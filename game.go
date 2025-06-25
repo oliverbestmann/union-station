@@ -26,6 +26,10 @@ type VillageCalculation struct {
 	RNGCheck int
 }
 
+type ResetOnUpdate struct {
+	NextSeed uint64
+}
+
 // Game implements ebiten.Game interface.
 type Game struct {
 	initialized bool
@@ -91,6 +95,8 @@ type Game struct {
 
 	lost bool
 	won  bool
+
+	resetOnUpdate *ResetOnUpdate
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -102,6 +108,10 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 }
 
 func (g *Game) Reset(seed uint64) {
+	if seed == 0 {
+		seed = g.nextSeed()
+	}
+
 	*g = Game{
 		initialized:  true,
 		debug:        Debug,
@@ -148,6 +158,9 @@ func (g *Game) Reset(seed uint64) {
 			},
 		},
 	})
+
+	// force update once
+	_ = g.Update()
 }
 
 func (g *Game) Update() error {
@@ -159,9 +172,16 @@ func (g *Game) Update() error {
 		g.audio.PlayMusic()
 	}
 
-	// step to the next seed
+	if g.resetOnUpdate != nil {
+		// a reset is scheduled, resetting now
+		g.Reset(g.resetOnUpdate.NextSeed)
+	}
+
+	// step at the next reset
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		g.Reset(g.seed + 1)
+		g.resetOnUpdate = &ResetOnUpdate{
+			NextSeed: g.seed + 1,
+		}
 	}
 
 	if inpututil.IsKeyJustPressed(ebiten.KeyP) && g.profileStop == nil {
@@ -818,6 +838,7 @@ outer:
 						Face:  Font24,
 						Text:  "Congratulation",
 						Color: DarkTextColor,
+						Gap:   8,
 					},
 
 					{
@@ -827,7 +848,11 @@ outer:
 					},
 				},
 
-				ButtonText: "Next",
+				Button: NewButton("Next", AcceptButtonColors).WithOnClick(func() {
+					g.resetOnUpdate = &ResetOnUpdate{
+						NextSeed: g.nextSeed(),
+					}
+				}),
 			})
 		}
 
@@ -863,8 +888,6 @@ outer:
 					Color: DarkTextColor,
 				},
 			},
-
-			ButtonText: "Next",
 		})
 
 		return
@@ -898,4 +921,30 @@ func (g *Game) allStationsConnected() bool {
 	}
 
 	return seen.Len() == len(graph.Stations)
+}
+
+func (g *Game) nextSeed() uint64 {
+	simple := []uint64{
+		47,
+	}
+
+	nice := []uint64{
+		18,
+		17,
+	}
+
+	nextSeed := nice[0]
+
+	_ = simple
+	_ = nice
+
+	idx := slices.Index(nice, g.seed) + 1
+	if idx < len(nice) {
+		nextSeed = nice[idx]
+	} else {
+		// we are out of maps, what now?
+		nextSeed = rand.Uint64()
+	}
+
+	return nextSeed
 }

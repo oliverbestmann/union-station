@@ -43,7 +43,6 @@ func main() {
 		Next: func(audio Audio) ebiten.Game {
 			return &Game{
 				audio: audio,
-				seed:  17,
 
 				screenWidth:  screenWidth * renderScale,
 				screenHeight: screenHeight * renderScale,

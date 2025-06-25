@@ -12,6 +12,7 @@ type Text struct {
 	Text   string
 	Face   text.Face
 	Color  color.Color
+	Gap    float64
 }
 
 func MeasureTexts(texts []Text) Vec {
@@ -19,7 +20,7 @@ func MeasureTexts(texts []Text) Vec {
 	for _, t := range texts {
 		width, height := text.Measure(t.Text, t.Face, t.Face.Metrics().XHeight*2)
 		size.X = max(size.X, t.Offset.X+width)
-		size.Y += t.Offset.Y + height
+		size.Y += t.Offset.Y + height + t.Gap
 	}
 
 	return size
@@ -33,6 +34,6 @@ func DrawTexts(target *ebiten.Image, offset Vec, texts []Text) {
 
 		// measure text to advance position
 		_, height := text.Measure(t.Text, t.Face, t.Face.Metrics().XHeight*2)
-		pos.Y += t.Offset.Y + height
+		pos.Y += t.Offset.Y + height + t.Gap
 	}
 }

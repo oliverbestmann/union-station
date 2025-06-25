@@ -21,6 +21,7 @@ type Button struct {
 	Size     Vec
 	Alpha    float64
 	Disabled bool
+	OnClick  func()
 	hover    bool
 	pressed  bool
 }
@@ -64,6 +65,11 @@ func (b *Button) IsClicked(cursor CursorState) bool {
 
 	case b.pressed && cursor.JustReleased:
 		b.pressed = false
+
+		if b.OnClick != nil {
+			b.OnClick()
+		}
+
 		return true
 	}
 
@@ -95,6 +101,11 @@ func (b *Button) Draw(target *ebiten.Image) {
 	// draw the text
 	pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset))
 	DrawTextCenter(target, b.Text, Font24, pos, scaleColorWithAlpha(b.Colors.Text, b.Alpha))
+}
+
+func (b *Button) WithOnClick(onClick func()) *Button {
+	b.OnClick = onClick
+	return b
 }
 
 func LayoutButtonsColumn(origin Vec, gap float64, buttons ...*Button) {

@@ -63,3 +63,11 @@ var PlanButtonColors = ButtonColors{
 	Text:   LightTextColor,
 	Shadow: ShadowColor,
 }
+
+var AcceptButtonColors = ButtonColors{
+	Normal:   rgbaOf(0x6f8b6eff),
+	Hover:    rgbaOf(0x87a985ff),
+	Disabled: rgbaOf(0xa05e5eff),
+	Text:     LightTextColor,
+	Shadow:   ShadowColor,
+}

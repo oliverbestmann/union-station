@@ -254,7 +254,7 @@ func (g *Game) drawVillageTooltip(target *ebiten.Image, pos Vec, village *Villag
 
 	if int(pos.X) > imageWidth(target)*3/4 {
 		// anchor tooltip top right corner of the dialog
-		size := dialog.Size()
+		size, _ := dialog.Measure()
 		pos = pos.Add(Vec{X: -size.X - 16, Y: 24})
 	} else {
 		// anchor tooltip at the top left corner
