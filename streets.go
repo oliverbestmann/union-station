@@ -713,12 +713,12 @@ func (r *RenderSegments) Draw(screen *ebiten.Image, toScreen ebiten.GeoM) {
 		vertices := r.VerticesChunks[chunk]
 		indices := r.IndicesChunks[chunk]
 
-		trVertices := TransformVertices(toScreen, vertices, &r.tempVertices)
+		r.tempVertices = TransformVertices(toScreen, vertices, r.tempVertices[:0])
 
 		// render vertices
 		op := &ebiten.DrawTrianglesOptions{}
 		op.AntiAlias = true
-		screen.DrawTriangles(trVertices, indices, whiteImage, op)
+		screen.DrawTriangles(r.tempVertices, indices, whiteImage, op)
 	}
 }
 

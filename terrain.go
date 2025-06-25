@@ -57,8 +57,8 @@ func (t *Terrain) Draw(target *ebiten.Image, toScreen ebiten.GeoM) {
 
 	for _, river := range t.Rivers {
 		// bring vertices to screen
-		trVertices := TransformVertices(toScreen, river.Vertices, &t.scratch)
-		target.DrawTriangles(trVertices, river.Indices, whiteImage, &top)
+		t.scratch = TransformVertices(toScreen, river.Vertices, t.scratch[:0])
+		target.DrawTriangles(t.scratch, river.Indices, whiteImage, &top)
 	}
 }
 

@@ -24,10 +24,10 @@ func DrawFillCircle(target *ebiten.Image, center Vec, radius float64, c color.Co
 	tr.Scale(0.01*radius, 0.01*radius)
 	tr.Translate(center.X, center.Y)
 
-	vertices := TransformVertices(tr, circleVertices, &circleScratch)
+	circleScratch = TransformVertices(tr, circleVertices, circleScratch[:0])
 
-	ApplyColorToVertices(vertices, c)
+	ApplyColorToVertices(circleScratch, c)
 
 	op := &ebiten.DrawTrianglesOptions{AntiAlias: true}
-	target.DrawTriangles(vertices, circleIndices, whiteImage, op)
+	target.DrawTriangles(circleScratch, circleIndices, whiteImage, op)
 }

@@ -77,12 +77,7 @@ var fpIndices []uint16
 func FillPath(target *ebiten.Image, path vector.Path, tr ebiten.GeoM, color color.Color) {
 	fpVertices, fpIndices = path.AppendVerticesAndIndicesForFilling(fpVertices[:0], fpIndices[:0])
 
-	for idx := range fpVertices {
-		x, y := tr.Apply(float64(fpVertices[idx].DstX), float64(fpVertices[idx].DstY))
-		fpVertices[idx].DstX = float32(x)
-		fpVertices[idx].DstY = float32(y)
-	}
-
+	fpVertices = TransformVertices(tr, fpVertices, fpVertices[:0])
 	ApplyColorToVertices(fpVertices, color)
 
 	top := &ebiten.DrawTrianglesOptions{}
@@ -252,25 +247,14 @@ func DrawTextRight(target *ebiten.Image, msg string, face text.Face, pos Vec, co
 	DrawText(target, msg, face, pos, color, text.AlignEnd, text.AlignStart)
 }
 
-func TransformVertices(tr ebiten.GeoM, vertices []ebiten.Vertex, reuse *[]ebiten.Vertex) []ebiten.Vertex {
-	var trVertices []ebiten.Vertex
-
-	if reuse != nil {
-		// transform vertices to screen
-		trVertices = (*reuse)[:0]
-	}
-
+func TransformVertices(tr ebiten.GeoM, vertices []ebiten.Vertex, target []ebiten.Vertex) []ebiten.Vertex {
 	for _, vertex := range vertices {
 		x, y := tr.Apply(float64(vertex.DstX), float64(vertex.DstY))
 		vertex.DstX, vertex.DstY = float32(x), float32(y)
-		trVertices = append(trVertices, vertex)
+		target = append(target, vertex)
 	}
 
-	if reuse != nil {
-		*reuse = trVertices[:0]
-	}
-
-	return trVertices
+	return target
 }
 
 func directionTo(a, b Vec) Vec {

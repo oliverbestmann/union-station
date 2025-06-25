@@ -202,20 +202,21 @@ func bboxOf(vecs []Vec) Rect {
 type DrawVillageBoundsOptions struct {
 	ToScreen    ebiten.GeoM
 	StrokeWidth float64
-	StrokeColor color.NRGBA
-	FillColor   color.NRGBA
+	StrokeColor color.Color
+	FillColor   color.Color
 }
 
 func DrawVillageBounds(target *ebiten.Image, village *Village, opts DrawVillageBoundsOptions) {
 	path := pathOf(village.Hull, true)
 
-	if opts.FillColor.A > 0 {
+	_, _, _, fillAlpha := opts.FillColor.RGBA()
+	if fillAlpha > 0 {
 		FillPath(target, path, opts.ToScreen, opts.FillColor)
 	}
 
 	if opts.StrokeWidth > 0 {
 		StrokePath(target, path, opts.ToScreen, opts.StrokeColor, &vector.StrokeOptions{
-			Width:    2,
+			Width:    float32(opts.StrokeWidth),
 			LineJoin: vector.LineJoinRound,
 			LineCap:  vector.LineCapSquare,
 		})

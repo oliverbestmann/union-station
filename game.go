@@ -674,25 +674,21 @@ func (g *Game) drawVillageCalculation(screen *ebiten.Image, result *VillageCalcu
 	if station := g.hoveredStation; station != nil {
 		DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
 			ToScreen:  g.toScreen,
-			FillColor: rgbaOf(0x83838320),
+			FillColor: color.RGBA{R: 0xb0, G: 0x89, B: 0xab, A: 0x30},
 		})
 	}
 
 	if station := g.selectedStationOne; station != nil {
 		DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
-			ToScreen:    g.toScreen,
-			FillColor:   rgbaOf(0xb089ab50),
-			StrokeColor: rgbaOf(0xb089abff),
-			StrokeWidth: 2,
+			ToScreen:  g.toScreen,
+			FillColor: color.RGBA{R: 0xb0, G: 0x89, B: 0xab, A: 0x50},
 		})
 	}
 
 	if station := g.selectedStationTwo; station != nil {
 		DrawVillageBounds(screen, station.Village, DrawVillageBoundsOptions{
-			ToScreen:    g.toScreen,
-			FillColor:   rgbaOf(0xb089ab50),
-			StrokeColor: rgbaOf(0xb089abff),
-			StrokeWidth: 2,
+			ToScreen:  g.toScreen,
+			FillColor: color.RGBA{R: 0xb0, G: 0x89, B: 0xab, A: 0x50},
 		})
 	}
 
