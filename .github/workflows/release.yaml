@@ -71,7 +71,8 @@ jobs:
 
       - name: Optimize wasm file
         run: |
-          binaryen-version_123/bin/wasm-opt unionstation.wasm -o unionstation.wasm --enable-bulk-memory-opt -Oz --strip-debug
+          binaryen-version_123/bin/wasm-opt unionstation.wasm -o unionstation.wasm --enable-bulk-memory-opt -O4 --strip-debug
+          binaryen-version_123/bin/wasm-opt unionstation.wasm -o unionstation.wasm --enable-bulk-memory-opt -Os --strip-debug
 
       - name: Precompress files with brotli
         run: |
