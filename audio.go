@@ -17,7 +17,7 @@ import (
 const bytesPerSample = 8
 
 var AudioContext = sync.OnceValue(func() *audio.Context {
-	return audio.NewContext(48000)
+	return audio.NewContext(44100)
 })
 
 type Audio struct {
