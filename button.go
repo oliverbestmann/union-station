@@ -25,6 +25,18 @@ type Button struct {
 	Image    *ebiten.Image
 	hover    bool
 	pressed  bool
+
+	imageCached       *ebiten.Image
+	imageCachedValues buttonCacheValues
+}
+
+type buttonCacheValues struct {
+	Colors   ButtonColors
+	Text     string
+	Size     Vec
+	Disabled bool
+	hover    bool
+	pressed  bool
 }
 
 func NewButton(text string, colors ButtonColors) *Button {
@@ -90,25 +102,55 @@ func (b *Button) Draw(target *ebiten.Image) {
 		fillColor = b.Colors.Hover
 	}
 
-	if b.Colors.Shadow != nil {
-		// draw a shadow for the rectangle
-		DrawRoundRect(target, b.Position.Add(vecSplat(4)), b.Size, scaleColorWithAlpha(b.Colors.Shadow, b.Alpha))
+	values := buttonCacheValues{
+		Colors:   b.Colors,
+		Text:     b.Text,
+		Size:     b.Size,
+		Disabled: b.Disabled,
+		hover:    b.hover,
+		pressed:  b.pressed,
 	}
 
-	// draw the rectangle
-	hoverOffset := vecSplat(iff(b.pressed, 2.0, 0))
-	DrawRoundRect(target, b.Position.Add(hoverOffset), b.Size, scaleColorWithAlpha(fillColor, b.Alpha))
+	if b.imageCachedValues != values {
+		b.imageCachedValues = values
 
-	if b.Image != nil {
-		pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset)).Sub(imageSizeOf(b.Image).Mulf(0.5))
-		var op ebiten.DrawImageOptions
-		op.GeoM.Translate(pos.X, pos.Y)
-		target.DrawImage(b.Image, &op)
-	} else {
-		// draw the text
-		pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset))
-		DrawTextCenter(target, b.Text, Font24, pos, scaleColorWithAlpha(b.Colors.Text, b.Alpha))
+		buttonSize := b.Size.Add(vecSplat(4))
+
+		if b.imageCached == nil || !imageSizeOf(b.imageCached).EqualApprox(buttonSize) {
+			if b.imageCached != nil {
+				b.imageCached.Deallocate()
+			}
+
+			b.imageCached = ebiten.NewImage(int(buttonSize.X), int(buttonSize.Y))
+		}
+
+		b.imageCached.Clear()
+
+		if b.Colors.Shadow != nil {
+			// draw a shadow for the rectangle
+			DrawRoundRect(b.imageCached, vecSplat(4), b.Size, b.Colors.Shadow)
+		}
+
+		// draw the rectangle
+		hoverOffset := vecSplat(iff(b.pressed, 2.0, 0))
+		DrawRoundRect(b.imageCached, hoverOffset, b.Size, fillColor)
+
+		if b.Image != nil {
+			pos := b.Size.Mulf(0.5).Add(hoverOffset).Sub(imageSizeOf(b.Image).Mulf(0.5))
+			var op ebiten.DrawImageOptions
+			op.GeoM.Translate(pos.X, pos.Y)
+			b.imageCached.DrawImage(b.Image, &op)
+		} else {
+			// draw the text
+			pos := b.Size.Mulf(0.5).Add(hoverOffset)
+			DrawTextCenter(b.imageCached, b.Text, Font24, pos, b.Colors.Text)
+		}
 	}
+
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(b.Position.X, b.Position.Y)
+	op.ColorScale.ScaleAlpha(float32(b.Alpha))
+	target.DrawImage(b.imageCached, op)
 }
 
 func (b *Button) WithOnClick(onClick func()) *Button {
