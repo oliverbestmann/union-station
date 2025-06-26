@@ -7,19 +7,36 @@ import (
 	"github.com/oliverbestmann/union-station/assets"
 	. "github.com/quasilyte/gmath"
 	"image/color"
+	"math"
 	"sync"
 )
 
 func (g *Game) drawHUD(screen *ebiten.Image) {
-	if g.stats.CoinsTotal == 0 {
-		// villages not calculated, do not show hud
-		return
+	// hud position we start to draw at
+	pos := Vec{X: imageSizeOf(screen).X - 16, Y: 16}
+
+	g.btnSettings.Draw(screen)
+	pos.X -= g.btnSettings.Size.X
+	pos.X -= 16
+
+	// buttons for the settings menu. calculate
+	// the size to put a layer below
+	menuContentSize := Rect{Min: vecSplat(math.Inf(1))}
+	for _, button := range g.menu {
+		menuContentSize.Min.X = min(menuContentSize.Min.X, button.Position.X)
+		menuContentSize.Min.Y = min(menuContentSize.Min.Y, button.Position.Y)
+
+		menuContentSize.Max.X = max(menuContentSize.Max.X, button.Position.X+button.Size.X)
+		menuContentSize.Max.Y = max(menuContentSize.Max.Y, button.Position.Y+button.Size.Y)
+	}
+
+	DrawWindow(screen, menuContentSize.Min.Sub(vecSplat(16)), menuContentSize.Size().Add(vecSplat(32)))
+
+	for _, button := range g.menu {
+		button.Draw(screen)
 	}
 
 	if g.stats.CoinsTotal > 0 {
-		// hud position we start to draw at
-		pos := Vec{X: imageSizeOf(screen).X - 16, Y: 16}
-
 		msg := fmt.Sprintf("Budget: %d", g.stats.CoinsAvailable())
 		g.hudRectangleWithIcon(screen, &pos, -1, msg, HudRectangleColor, assets.Coin())
 

@@ -22,6 +22,7 @@ type Button struct {
 	Alpha    float64
 	Disabled bool
 	OnClick  func()
+	Image    *ebiten.Image
 	hover    bool
 	pressed  bool
 }
@@ -49,7 +50,7 @@ func (b *Button) Hover(cursor CursorState) bool {
 	return hover
 }
 
-func (b *Button) IsClicked(cursor CursorState) bool {
+func (b *Button) Clicked(cursor CursorState) bool {
 	if b == nil || b.Disabled {
 		return false
 	}
@@ -98,9 +99,16 @@ func (b *Button) Draw(target *ebiten.Image) {
 	hoverOffset := vecSplat(iff(b.pressed, 2.0, 0))
 	DrawRoundRect(target, b.Position.Add(hoverOffset), b.Size, scaleColorWithAlpha(fillColor, b.Alpha))
 
-	// draw the text
-	pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset))
-	DrawTextCenter(target, b.Text, Font24, pos, scaleColorWithAlpha(b.Colors.Text, b.Alpha))
+	if b.Image != nil {
+		pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset)).Sub(imageSizeOf(b.Image).Mulf(0.5))
+		var op ebiten.DrawImageOptions
+		op.GeoM.Translate(pos.X, pos.Y)
+		target.DrawImage(b.Image, &op)
+	} else {
+		// draw the text
+		pos := b.Position.Add(b.Size.Mulf(0.5).Add(hoverOffset))
+		DrawTextCenter(target, b.Text, Font24, pos, scaleColorWithAlpha(b.Colors.Text, b.Alpha))
+	}
 }
 
 func (b *Button) WithOnClick(onClick func()) *Button {

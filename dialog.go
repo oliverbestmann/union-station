@@ -51,7 +51,7 @@ func (st *DialogStack) Update(dt float64) (modal bool) {
 		cursor := Cursor()
 		for _, button := range dialog.Buttons {
 			button.Hover(cursor)
-			button.IsClicked(cursor)
+			button.Clicked(cursor)
 		}
 
 		if dialog.Modal {

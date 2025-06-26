@@ -5,6 +5,7 @@ import (
 	"github.com/fogleman/ease"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/oliverbestmann/union-station/assets"
 	"github.com/oliverbestmann/union-station/tween"
 	. "github.com/quasilyte/gmath"
 	"image/color"
@@ -28,7 +29,8 @@ type VillageCalculation struct {
 }
 
 type ResetOnUpdate struct {
-	NextSeed uint64
+	WantSimple bool
+	NextSeed   uint64
 }
 
 // Game implements ebiten.Game interface.
@@ -79,6 +81,8 @@ type Game struct {
 	btnAcceptConnection   *Button
 	btnPlanningConnection *Button
 
+	menu []*Button
+
 	acceptedGraph StationGraph
 	planningGraph StationGraph
 
@@ -100,7 +104,9 @@ type Game struct {
 	resetOnUpdate *ResetOnUpdate
 	leaderboard   Promise[Leaderboard, struct{}]
 
-	score int
+	score       int
+	btnSettings *Button
+	isSimple    bool
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -111,15 +117,18 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeigh
 	return g.screenWidth, g.screenHeight
 }
 
-func (g *Game) Reset(seed uint64) {
-	if seed == 0 {
-		seed = g.nextSeed()
+func (g *Game) Reset(reset ResetOnUpdate) {
+	if reset.NextSeed == 0 {
+		reset.NextSeed = g.nextSeed(reset.WantSimple)
 	}
+
+	seed := reset.NextSeed
 
 	*g = Game{
 		initialized:  true,
 		debug:        Debug,
 		seed:         seed,
+		isSimple:     reset.WantSimple,
 		audio:        g.audio,
 		screenWidth:  g.screenWidth,
 		screenHeight: g.screenHeight,
@@ -163,6 +172,12 @@ func (g *Game) Reset(seed uint64) {
 		},
 	})
 
+	g.btnSettings = NewButton("", HudButtonColors)
+	g.btnSettings.Size = Vec{X: 48, Y: 48}
+	g.btnSettings.Position = Vec{X: float64(g.screenWidth-16) - g.btnSettings.Size.X, Y: 8}
+	g.btnSettings.Image = assets.Settings()
+	g.btnSettings.OnClick = g.showSettings
+
 	// force update once
 	_ = g.Update()
 }
@@ -170,7 +185,10 @@ func (g *Game) Reset(seed uint64) {
 func (g *Game) Update() error {
 	// initialize the game if needed
 	if !g.initialized {
-		g.Reset(g.seed)
+		g.Reset(ResetOnUpdate{
+			NextSeed:   g.seed,
+			WantSimple: false,
+		})
 
 		// start music audio playback only the first time
 		g.audio.PlayMusic()
@@ -178,7 +196,7 @@ func (g *Game) Update() error {
 
 	if g.resetOnUpdate != nil {
 		// a reset is scheduled, resetting now
-		g.Reset(g.resetOnUpdate.NextSeed)
+		g.Reset(*g.resetOnUpdate)
 	}
 
 	// step at the next reset
@@ -307,9 +325,19 @@ func (g *Game) Input() {
 	//goland:noinspection GoDfaConstantCondition
 	inputIntercepted = g.btnAcceptConnection.Hover(g.cursor) || inputIntercepted
 	inputIntercepted = g.btnPlanningConnection.Hover(g.cursor) || inputIntercepted
+	inputIntercepted = g.btnSettings.Hover(g.cursor) || inputIntercepted
+
+	// handled via callback
+	g.btnSettings.Clicked(g.cursor)
+
+	// handled via callback
+	for _, button := range g.menu {
+		inputIntercepted = button.Hover(g.cursor) || inputIntercepted
+		button.Clicked(g.cursor)
+	}
 
 	// check button inputs
-	if g.btnAcceptConnection.IsClicked(g.cursor) {
+	if g.btnAcceptConnection.Clicked(g.cursor) {
 		accepted := &g.acceptedGraph
 
 		var newlyConnectedCount int
@@ -359,7 +387,7 @@ func (g *Game) Input() {
 	g.stats.CoinsSpent = g.acceptedGraph.TotalPrice()
 	g.stats.CoinsPlanned = g.planningGraph.TotalPrice()
 
-	if g.btnPlanningConnection.IsClicked(g.cursor) {
+	if g.btnPlanningConnection.Clicked(g.cursor) {
 		if g.planningGraph.Has(g.selectedStationOne, g.selectedStationTwo) {
 			// was already planed, remove it from the graph
 			g.planningGraph.Remove(g.selectedStationOne, g.selectedStationTwo)
@@ -489,18 +517,7 @@ func (g *Game) Input() {
 				for idx, button := range buttons {
 					delay := time.Duration(idx * 250)
 
-					g.tweens.Add(tween.Delay(delay, tween.Concurrent(
-						&tween.Simple{
-							Ease:     ease.OutQuad,
-							Duration: 250 * time.Millisecond,
-							Target:   tween.LerpValue(&button.Position.X, button.Position.X-16, button.Position.X),
-						},
-						&tween.Simple{
-							Ease:     ease.OutQuad,
-							Duration: 250 * time.Millisecond,
-							Target:   tween.LerpValue(&button.Alpha, 0, 1),
-						},
-					)))
+					g.slideIn(button, delay)
 
 					button.Alpha = 0
 					button.Position.X -= 16
@@ -633,6 +650,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 
 	g.drawHUD(screen)
+
 	g.dialogStack.Draw(screen)
 
 	g.btnAcceptConnection.Draw(screen)
@@ -906,7 +924,7 @@ outer:
 				Buttons: []*Button{
 					NewButton("Onwards!", AcceptButtonColors).WithOnClick(func() {
 						g.resetOnUpdate = &ResetOnUpdate{
-							NextSeed: g.nextSeed(),
+							NextSeed: g.nextSeed(g.isSimple),
 						}
 					}),
 				},
@@ -977,7 +995,7 @@ outer:
 
 				NewButton("Onwards!", AcceptButtonColors).WithAutoSize().WithOnClick(func() {
 					g.resetOnUpdate = &ResetOnUpdate{
-						NextSeed: g.nextSeed(),
+						NextSeed: g.nextSeed(g.isSimple),
 					}
 				}),
 			},
@@ -1016,7 +1034,7 @@ func (g *Game) allStationsConnected() bool {
 	return seen.Len() == len(graph.Stations)
 }
 
-func (g *Game) nextSeed() uint64 {
+func (g *Game) nextSeed(wantSimple bool) uint64 {
 	simple := []uint64{
 		47,
 		49,
@@ -1033,17 +1051,16 @@ func (g *Game) nextSeed() uint64 {
 		62,
 	}
 
-	nextSeed := nice[0]
+	levels := iff(wantSimple, simple, nice)
 
-	_ = simple
-	_ = nice
+	nextSeed := levels[0]
 
-	idx := slices.Index(nice, g.seed) + 1
-	if idx < len(nice) {
-		nextSeed = nice[idx]
+	idx := slices.Index(levels, g.seed) + 1
+	if idx < len(levels) {
+		nextSeed = levels[idx]
 	} else {
 		// we are out of maps, what now?
-		nextSeed = rand.Uint64()
+		nextSeed = levels[0]
 	}
 
 	return nextSeed
@@ -1106,4 +1123,65 @@ func (g *Game) villageIsConnected(village *Village) bool {
 	}
 
 	return false
+}
+
+func (g *Game) showSettings() {
+	g.menu = g.menu[:0]
+
+	buttonSize := NewButton("", HudButtonColors).Size
+	pos := Vec{X: float64(g.screenWidth) - 32 - buttonSize.X, Y: 64 + 24}
+
+	var delay time.Duration
+
+	add := func(btn *Button) *Button {
+		btn.Position = pos
+		btn.Alpha = 0
+		g.menu = append(g.menu, btn)
+		g.slideIn(btn, delay)
+		pos.Y += buttonSize.Y + 16
+		delay += 50 * time.Millisecond
+		return btn
+	}
+
+	add(NewButton("Random level", HudButtonColors)).WithOnClick(func() {
+		g.resetOnUpdate = &ResetOnUpdate{
+			NextSeed: rand.Uint64(),
+		}
+	})
+
+	muteText := func() string { return iff(g.audio.Mute, "Unmute", "Mute") }
+	mute := add(NewButton(muteText(), HudButtonColors))
+	mute.OnClick = func() {
+		g.audio.ToggleMute()
+		mute.Text = muteText()
+	}
+
+	add(NewButton("Simple level", HudButtonColors)).WithOnClick(func() {
+		g.resetOnUpdate = &ResetOnUpdate{
+			WantSimple: true,
+			NextSeed:   g.nextSeed(true),
+		}
+	})
+
+	add(NewButton("Complex level", HudButtonColors)).WithOnClick(func() {
+		g.resetOnUpdate = &ResetOnUpdate{
+			WantSimple: false,
+			NextSeed:   g.nextSeed(false),
+		}
+	})
+}
+
+func (g *Game) slideIn(button *Button, delay time.Duration) {
+	g.tweens.Add(tween.Delay(delay, tween.Concurrent(
+		&tween.Simple{
+			Ease:     ease.OutQuad,
+			Duration: 250 * time.Millisecond,
+			Target:   tween.LerpValue(&button.Position.X, button.Position.X-16, button.Position.X),
+		},
+		&tween.Simple{
+			Ease:     ease.OutQuad,
+			Duration: 250 * time.Millisecond,
+			Target:   tween.LerpValue(&button.Alpha, 0, 1),
+		},
+	)))
 }

@@ -27,6 +27,9 @@ var dummy_qoa []byte
 //go:embed coin.png
 var coin_png []byte
 
+//go:embed settings.png
+var settings_png []byte
+
 //go:embed coin-planned.png
 var coin_planned_png []byte
 
@@ -40,6 +43,11 @@ var Coin = sync.OnceValue(func() *ebiten.Image {
 
 var PlannedCoin = sync.OnceValue(func() *ebiten.Image {
 	image, _ := png.Decode(bytes.NewReader(coin_planned_png))
+	return ebiten.NewImageFromImage(image)
+})
+
+var Settings = sync.OnceValue(func() *ebiten.Image {
+	image, _ := png.Decode(bytes.NewReader(settings_png))
 	return ebiten.NewImageFromImage(image)
 })
 

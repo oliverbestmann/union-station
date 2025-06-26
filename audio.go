@@ -27,7 +27,7 @@ type Audio struct {
 
 	players []*audio.Player
 
-	mute bool
+	Mute bool
 }
 
 func (a *Audio) PlayMusic() {
@@ -60,7 +60,7 @@ func (a *Audio) PlayMusic() {
 }
 
 func (a *Audio) Play(samples Samples) {
-	if a.mute {
+	if a.Mute {
 		return
 	}
 
@@ -71,11 +71,11 @@ func (a *Audio) ToggleMute() {
 	a.Cleanup()
 
 	// toggle mute flag
-	a.mute = !a.mute
+	a.Mute = !a.Mute
 
 	// calculate mute volume
 	volume := 1.0
-	if a.mute {
+	if a.Mute {
 		volume = 0.0
 	}
 

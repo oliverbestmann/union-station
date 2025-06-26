@@ -65,6 +65,13 @@ var PlanButtonColors = ButtonColors{
 	Shadow: ShadowColor,
 }
 
+var HudButtonColors = ButtonColors{
+	Normal: HudRectangleColor,
+	Hover:  HudPlannedRectangleColor,
+	Text:   LightTextColor,
+	Shadow: ShadowColor,
+}
+
 var AcceptButtonColors = ButtonColors{
 	Normal:   rgbaOf(0x6f8b6eff),
 	Hover:    rgbaOf(0x87a985ff),

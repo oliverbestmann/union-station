@@ -45,7 +45,7 @@ func (l *TheLoadingScreen) Update(ready bool, progress *string) (startGame bool)
 
 		l.btnContinue.Hover(cursor)
 
-		if l.btnContinue.IsClicked(cursor) {
+		if l.btnContinue.Clicked(cursor) {
 			startGame = true
 		}
 	}
