@@ -167,9 +167,17 @@ func (b *Button) WithAutoSize() *Button {
 func LayoutButtonsColumn(origin Vec, gap float64, buttons ...*Button) {
 	pos := origin
 
+	var maxWidth float64
+
 	for _, button := range buttons {
 		button.Position = pos
 		pos.Y += button.Size.Y + gap
+
+		maxWidth = max(maxWidth, button.Size.X)
+	}
+
+	for _, button := range buttons {
+		button.Size.X = maxWidth
 	}
 }
 
