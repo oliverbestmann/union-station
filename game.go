@@ -1045,17 +1045,23 @@ func (g *Game) nextSeed(wantSimple bool) uint64 {
 		51,
 		53,
 		63,
+		68,
+		79,
 	}
 
-	nice := []uint64{
-		18,
+	hard := []uint64{
 		17,
-		35,
+		18,
 		48,
+		35,
 		62,
+		64,
+		67,
+		88,
+		92,
 	}
 
-	levels := iff(wantSimple, simple, nice)
+	levels := iff(wantSimple, simple, hard)
 
 	nextSeed := levels[0]
 
