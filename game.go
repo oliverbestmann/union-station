@@ -462,6 +462,8 @@ func (g *Game) Input() {
 		}
 
 		if g.cursor.JustPressed {
+			g.menu = nil
+
 			var twoSelected = false
 
 			switch {
@@ -515,12 +517,8 @@ func (g *Game) Input() {
 				LayoutButtonsColumn(buttonsOrigin, 8, buttons...)
 
 				for idx, button := range buttons {
-					delay := time.Duration(idx * 250)
-
+					delay := time.Duration(idx) * 50 * time.Millisecond
 					g.slideIn(button, delay)
-
-					button.Alpha = 0
-					button.Position.X -= 16
 				}
 
 				// disable button if we do not have enough money
@@ -561,6 +559,7 @@ func (g *Game) resetInput() {
 	g.selectedConnection = nil
 	g.btnAcceptConnection = nil
 	g.btnPlanningConnection = nil
+	g.menu = nil
 }
 
 func (g *Game) computeVillages(yield func(string)) VillageCalculation {
@@ -1138,18 +1137,13 @@ func (g *Game) villageIsConnected(village *Village) bool {
 func (g *Game) showSettings() {
 	g.menu = g.menu[:0]
 
-	buttonSize := NewButton("", HudButtonColors).Size
-	pos := Vec{X: float64(g.screenWidth) - 32 - buttonSize.X, Y: 64 + 24}
-
-	var delay time.Duration
+	var maxWidth float64
 
 	add := func(btn *Button) *Button {
-		btn.Position = pos
+		btn = btn.WithAutoSize()
 		btn.Alpha = 0
+		maxWidth = max(maxWidth, btn.Size.X)
 		g.menu = append(g.menu, btn)
-		g.slideIn(btn, delay)
-		pos.Y += buttonSize.Y + 16
-		delay += 50 * time.Millisecond
 		return btn
 	}
 
@@ -1179,6 +1173,14 @@ func (g *Game) showSettings() {
 			NextSeed:   g.nextSeed(false),
 		}
 	})
+
+	pos := Vec{X: float64(g.screenWidth) - 32 - maxWidth, Y: 64 + 24}
+	LayoutButtonsColumn(pos, 8, g.menu...)
+
+	for idx, button := range g.menu {
+		delay := time.Duration(idx) * 50 * time.Millisecond
+		g.slideIn(button, delay)
+	}
 }
 
 func (g *Game) slideIn(button *Button, delay time.Duration) {
@@ -1194,4 +1196,7 @@ func (g *Game) slideIn(button *Button, delay time.Duration) {
 			Target:   tween.LerpValue(&button.Alpha, 0, 1),
 		},
 	)))
+
+	button.Alpha = 0
+	button.Position.X -= 16
 }
