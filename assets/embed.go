@@ -21,6 +21,12 @@ var button_hover_qoa []byte
 //go:embed button_press.qoa
 var button_press_qoa []byte
 
+//go:embed win.qoa
+var win_qoa []byte
+
+//go:embed lose.qoa
+var lose_qoa []byte
+
 //go:embed dummy.qoa
 var dummy_qoa []byte
 
@@ -71,6 +77,14 @@ func ButtonHover() Int16Samples {
 
 func ButtonPress() Int16Samples {
 	return samplesOf(button_press_qoa)
+}
+
+func WinSound() Int16Samples {
+	return samplesOf(win_qoa)
+}
+
+func LoseSound() Int16Samples {
+	return samplesOf(lose_qoa)
 }
 
 func loadStreamOf(name string) MakeStream {

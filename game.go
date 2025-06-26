@@ -878,6 +878,8 @@ outer:
 			// player has won
 			g.won = true
 
+			g.audio.Play(g.audio.Win)
+
 			g.dialogStack.Push(Dialog{
 				Id:    "won",
 				Modal: true,
@@ -939,6 +941,8 @@ outer:
 	// if there is no further action available, the player has lost
 	if hasConnected && !actionAvailable {
 		g.lost = true
+
+		g.audio.Play(g.audio.Lose)
 
 		solution := BuildMST(g.acceptedGraph)
 		missingConnections := len(solution.Edges()) - len(g.acceptedGraph.Edges())

@@ -28,11 +28,15 @@ func main() {
 			yield("Loading audio data")
 			buttonPress := assets.ButtonPress()
 			buttonHover := assets.ButtonHover()
+			win := assets.WinSound()
+			lose := assets.LoseSound()
 
 			return Audio{
 				Songs:       assets.Songs(),
 				ButtonPress: Samples(buttonPress),
 				ButtonHover: Samples(buttonHover),
+				Win:         Samples(win),
+				Lose:        Samples(lose),
 			}
 		}),
 

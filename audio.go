@@ -13,9 +13,6 @@ import (
 	"time"
 )
 
-// bytesPerSample is the byte size for one sample (8 [bytes] = 2 [channels] * 4 [bytes] (32bit float)).
-const bytesPerSample = 8
-
 var AudioContext = sync.OnceValue(func() *audio.Context {
 	return audio.NewContext(44100)
 })
@@ -24,10 +21,12 @@ type Audio struct {
 	Songs       []assets.MakeStream
 	ButtonPress Samples
 	ButtonHover Samples
-
-	players []*audio.Player
+	Win         Samples
+	Lose        Samples
 
 	Mute bool
+
+	players []*audio.Player
 }
 
 func (a *Audio) PlayMusic() {
